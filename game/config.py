@@ -16,7 +16,7 @@ class GameConfig(BaseModel):
     show_names: bool = True
     seed: int = 42
 
-    max_rounds: int = 1 # 1 by default for tests
+    max_rounds: int = 1
 
     # LLM
     # TODO: talk abt model params and top_p/temperature for model determination
