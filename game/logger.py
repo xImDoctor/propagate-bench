@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Self, Literal
 
 from .config import GameConfig
 
@@ -9,9 +9,25 @@ from .config import GameConfig
 LOG_SCHEMA_VERSION = 1
 
 # for models name sanitizing in logs (like llama/llama3)
-# TODO: implement after models integration
+# TODO: integrate after model field appears
 def _sanitize(s: str) -> str:
     return s.replace('/', '_').replace(':', '_').replace(' ', '_')
+
+
+EventType = Literal[
+    'game_init',
+    'system_prompt_set',
+    'round_start',
+    'llm_request',
+    'llm_response',
+    'answer',
+    'score_update',
+    'share_decision',
+    'token_received',
+    'round_summary',
+    'game_over',
+    'error',
+]
 
 
 class EventLogger:
@@ -25,7 +41,7 @@ class EventLogger:
 
     @classmethod
     def from_config(cls, config: GameConfig, log_dir : Path = Path('logs/')) -> Self:
-        ts = datetime.now(timezone.utc)
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
         name = f"log_{ts}_{config.template_version}_seed{config.seed}.jsonl"
 
         return cls(log_path=log_dir / name)
@@ -45,7 +61,7 @@ class EventLogger:
 
     def log(
             self,
-            event: str,
+            event: EventType,
             payload: dict[str, Any],
             agent_id: str | None = None,
     ) -> None:
@@ -53,6 +69,7 @@ class EventLogger:
             'v': LOG_SCHEMA_VERSION,
             'ts': datetime.now(timezone.utc).isoformat(),
             'round': self._current_round,
+            'event': event,
             'agent_id': agent_id,
             'payload': payload,
         }
