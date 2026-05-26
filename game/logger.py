@@ -8,8 +8,9 @@ from .config import GameConfig
 # schema versioning if we remove/add new fields to log
 LOG_SCHEMA_VERSION = 1
 
-# for models name sanitizing in logs (like llama/llama3)
-# TODO: integrate after model field appears
+# safe substitution for strings that going into a filename
+# like model paths kinda meta-llama/Llama-3.3, version slugs, etc
+# replaces '/: '
 def _sanitize(s: str) -> str:
     return s.replace('/', '_').replace(':', '_').replace(' ', '_')
 
@@ -42,7 +43,11 @@ class EventLogger:
     @classmethod
     def from_config(cls, config: GameConfig, log_dir : Path = Path('logs/')) -> Self:
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
-        name = f"log_{ts}_{config.template_version}_seed{config.seed}.jsonl"
+
+        model_sanitized = _sanitize(config.model)
+        version = _sanitize(config.template_version)
+
+        name = f"log_{ts}_{model_sanitized}_{version}_seed{config.seed}.jsonl"
 
         return cls(log_path=log_dir / name)
     
