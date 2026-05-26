@@ -26,7 +26,8 @@ class GameConfig(BaseModel):
 
     # prompts and matching
     template_version: str = 'prompt_v1'
-    matcher: Literal['random_tiebreak', 'mutual_consent'] = 'random_tiebreak'
+    # random choice matcher resolves conflicts of 2 knowings -> 1 unknowing through rng.choice
+    matcher: Literal['random_choice', 'mutual_consent'] = 'random_choice'
 
     # experiment modes
     initiation_mode: Literal['teacher_only', 'student_only', 'both'] = 'teacher_only'
