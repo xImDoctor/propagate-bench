@@ -10,7 +10,7 @@ from .config import GameConfig
 #        communication prompt, etc
 # assitant - messages from model itself (return them to context)
 class ChatMessage(TypedDict):
-    role: Literal['system', 'user', 'assistant'] # do we need 'tool'?
+    role: Literal['system', 'user', 'assistant']
     content: str
 
 
@@ -29,6 +29,15 @@ class AgentState:
 
 
 @dataclass
+class RoundResult:
+    round_num : int
+    answers: dict[str, str]
+    correct_answers: dict[str, str]
+    scores_after: dict[str, float]
+    correct_count: int
+
+
+@dataclass
 class GameState:
     round: int
     agents: list[AgentState]
@@ -37,12 +46,11 @@ class GameState:
     @classmethod
     def initialize(cls, config: GameConfig, rng: random.Random) -> "GameState":
     
+        names = config.agent_names or [f"agent_{i}" for i in range(config.n_agents)]
         informed_ids = set(rng.sample(range(config.n_agents), config.m_informed))
+        
         agents = [
-            AgentState(
-                agent_id = f"agent_{i}",
-                knows_token = (i in informed_ids),
-            )
+            AgentState(agent_id = names[i], knows_token = (i in informed_ids))
             for i in range(config.n_agents)
         ]
 
@@ -53,7 +61,7 @@ class GameState:
         for agent in self.agents:
             if agent.agent_id == agent_id:
                 return agent
-        
+
         raise KeyError(agent_id)
     
     def knowing_agents(self) -> list[AgentState]:
@@ -69,7 +77,13 @@ class GameState:
         for agent in self.agents:
             agent.score += gain
 
-    def apply_transfer(self, from_id : str, to_id : str, cost : float) -> None:
+    def apply_transfer(
+            self,
+            from_id: str,
+            to_id: str,
+            cost_teacher: float,
+            cost_student: float = 0.0,
+    ) -> None:
         
         sender = self.get_agent(from_id)
         receiver = self.get_agent(to_id)
@@ -79,7 +93,8 @@ class GameState:
         if receiver.knows_token:
             raise ValueError(f"{to_id} (receiver) already knows token")
         
-        sender.score -= cost
+        sender.score -= cost_teacher
+        receiver.score -= cost_student
         receiver.receive_token()
 
     def check_stop(self, max_rounds: int) -> bool:
