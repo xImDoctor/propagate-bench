@@ -32,7 +32,7 @@ class AgentState:
 class RoundResult:
     round_num : int
     answers: dict[str, str]
-    correct_answers: dict[str, str]
+    correct_answers: dict[str, bool]
     scores_after: dict[str, float]
     correct_count: int
 

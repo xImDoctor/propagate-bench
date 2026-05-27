@@ -21,6 +21,7 @@ EventType = Literal[
     'round_start',
     'llm_request',
     'llm_response',
+    'context_inject',
     'answer',
     'score_update',
     'share_decision',

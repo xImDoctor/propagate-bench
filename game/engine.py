@@ -79,13 +79,13 @@ class GameEngine:
 
             round_result = self._run_answer_phase()
             self._run_scoring_phase(round_result)
-            self._run_communcation_phase(round_result)
+            self._run_communication_phase(round_result)
 
             self.logger.log(
                 'round_summary',
                 {
                     'answers': round_result.answers,
-                    'correct': round_result.correct,
+                    'correct': round_result.correct_answers,
                     'scores_after': round_result.scores_after,
                 }
             )
@@ -103,8 +103,112 @@ class GameEngine:
         )
 
 
-    def _run_answer_phase(self): ...
+    # TODO: try to parallel answer phase (parallel requests to cloud API, not ollama)
+    def _run_answer_phase(self) -> RoundResult:
+        answers: dict[str, str] = {}
+        correct: dict[str, bool] = {}
 
-    def _run_scoring_phase(self, round_result): ...
+        for agent in self.game_state.agents:
+            prompt_text = self.prompts.build_answer_prompt(agent, self.game_state.round)
 
-    def _run_communcation_phase(self, round_result): ...
+            agent.update_context('user', prompt_text)
+            self.logger.log(
+                'llm_request',
+                {'phase': 'answer', 'appended_message': {'role': 'user', 'content': prompt_text}},
+                agent_id=agent.agent_id,
+            )
+
+            try:
+                response = self.llm.structured_call(agent.context, AnswerResponse)
+                assert isinstance(response, AnswerResponse) # check resp structure
+
+                answer_str = response.answer
+                agent.update_context('assistant', response.model_dump_json())
+                self.logger.log(
+                    'llm_response',
+                    {'phase': 'answer', 'parsed': response.model_dump()},
+                    agent_id=agent.agent_id,
+                )
+
+            except Exception as e:
+                self.logger.log(
+                    'error',
+                    {'where': 'answer_phase', 'exc_type': type(e).__name__, 'message': str(e)},
+                    agent_id=agent.agent_id
+                )
+                answer_str = ''
+
+            is_correct = answer_str.strip() == self.token
+            answers[agent.agent_id] = answer_str
+            correct[agent.agent_id] = is_correct
+            
+            self.logger.log(
+                'answer',
+                {'answer': answer_str, 'is_correct': is_correct},
+                agent_id=agent.agent_id,
+            )
+
+
+        return RoundResult(
+            round_num=self.game_state.round,
+            answers=answers,
+            correct_answers=correct,
+            scores_after={},
+            correct_count=sum(correct.values()),
+        )
+        
+
+    def _run_scoring_phase(self, round_result : RoundResult) -> None:
+
+        self.game_state.distribute_score(round_result.correct_count)
+        
+        round_result.scores_after = {agent.agent_id: agent.score for agent in self.game_state.agents}
+        
+        gain = round_result.correct_count / self.config.n_agents
+        self.logger.log(
+            'score_update',
+            {
+                'correct_count': round_result.correct_count,
+                'gain': gain,
+                'scores_after': round_result.scores_after,
+            },
+        )
+
+        # TODO: move summary build to PromptBuilder
+        summary = (
+            f"Round {round_result.round_num}: {round_result.correct_count}/{self.config.n_agents} answered correctly. "
+            f"Your updated score will be shown in the next prompt."
+        )
+
+        for agent in self.game_state.agents:
+            agent.update_context('user', summary)
+            self.logger.log(
+                'context_inject',
+                {'phase': 'round_summary', 'content': summary},
+                agent_id=agent.agent_id
+            )
+
+
+    def _run_communication_phase(self, _round_result : RoundResult) -> None:
+        
+        transfers = self.matcher.match(
+            game_state=self.game_state,
+            round_result=_round_result,
+            llm=self.llm,
+            prompts=self.prompts,
+            logger=self.logger,
+            config=self.config,
+            rng=self.rng,
+        )
+
+        for t in transfers:
+            self.game_state.apply_transfer(t.from_id, t.to_id, t.cost_teacher, t.cost_student)
+            self.logger.log(
+                'token_received',
+                {
+                    'from': t.from_id,
+                    'to': t.to_id,
+                    'cost_teacher': t.cost_teacher,
+                    'cost_student': t.cost_student,
+                },
+            )
