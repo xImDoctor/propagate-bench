@@ -174,17 +174,14 @@ class GameEngine:
             },
         )
 
-        # TODO: move summary build to PromptBuilder
-        summary = (
-            f"Round {round_result.round_num}: {round_result.correct_count}/{self.config.n_agents} answered correctly. "
-            f"Your updated score will be shown in the next prompt."
-        )
+        round_summary = self.prompts.build_round_summary(round_result)
 
         for agent in self.game_state.agents:
-            agent.update_context('user', summary)
+            agent.update_context('user', round_summary)
+                                 
             self.logger.log(
-                'context_inject',
-                {'phase': 'round_summary', 'content': summary},
+                'summary_to_context',
+                {'phase': 'round_summary', 'content': round_summary},
                 agent_id=agent.agent_id
             )
 

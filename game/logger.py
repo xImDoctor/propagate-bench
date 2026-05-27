@@ -21,12 +21,12 @@ EventType = Literal[
     'round_start',
     'llm_request',
     'llm_response',
-    'context_inject',
     'answer',
     'score_update',
     'share_decision',
     'token_received',
     'round_summary',
+    'summary_to_context',
     'game_over',
     'error',
 ]

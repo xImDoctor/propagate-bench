@@ -36,6 +36,9 @@ class PromptBuilder(ABC):
                            round_result: RoundResult, 
                            unknowing_agents: list[str],
     ) -> str: ...
+
+    @abstractmethod
+    def build_round_summary(self, round_result: RoundResult) -> str: ...
     
 
 
@@ -84,6 +87,12 @@ class FakeLLMPromptBuilder(PromptBuilder):
             f"Respond as {{\"share\": bool, \"target\": \"agent_id\"|null, \"reasoning\": \"...\"}}."
         )
     
+    def build_round_summary(self, round_result: RoundResult) -> str:
+        return (
+            f"Round {round_result.round_num}: {round_result.correct_count}/{self.config.n_agents} answered correctly. "
+            f"Your updated score will be shown in the next prompt."
+        )
+    
 
 
 class PromptBuilderV1Baseline(PromptBuilder):
@@ -101,7 +110,6 @@ class PromptBuilderV1Baseline(PromptBuilder):
             agent, round_num
         )
     
-    
     def build_share_prompt(
             self, 
             agent: AgentState,
@@ -111,6 +119,9 @@ class PromptBuilderV1Baseline(PromptBuilder):
         return FakeLLMPromptBuilder(self.config, self.token).build_share_prompt(
             agent, round_result, unknowing_agents
         )
+    
+    def build_round_summary(self, round_result: RoundResult) -> str:
+        return FakeLLMPromptBuilder(self.config, self.token).build_round_summary(round_result)
     
 
 PROMPT_BUILDER_REGISTRY: dict[str, type[PromptBuilder]] = {
