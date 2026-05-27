@@ -54,7 +54,7 @@ class GameConfig(BaseModel):
                 raise ValueError('agent_names must be unique')
 
         # stubs for modes that not implemented yet
-        if self.matcher != 'random_tiebreak':
+        if self.matcher != 'random_choice':
             raise NotImplementedError(f"matcher={self.matcher!r} not implemented yet")
         if self.initiation_mode != 'teacher_only':
             raise NotImplementedError(f"initiation_mode={self.initiation_mode!r} not implemented yet")
