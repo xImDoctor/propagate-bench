@@ -124,7 +124,7 @@ def create_prompt_builder(config: GameConfig, token: str) -> PromptBuilder:
     if cls is None:
         raise ValueError(
             f"Unknow template version: {config.template_version!r}.\n"
-            f"Available ones:" {list(PROMPT_BUILDER_REGISTRY)}
+            f"Available ones: {list(PROMPT_BUILDER_REGISTRY)}"
         )
     
     return cls(config, token)
