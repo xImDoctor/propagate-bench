@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from .config import GameConfig
-from .fake_llm import LLMClient
+from .llm_client import LLMClient
 from .states import GameState, RoundResult
 from .prompt_builder import PromptBuilder, ShareResponse
 
