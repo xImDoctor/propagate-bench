@@ -39,6 +39,16 @@ def test_initialize_deterministic(make_config):
     assert [a.knows_token for a in s1.agents] == [a.knows_token for a in s2.agents]
 
 
+def test_initialize_default_starting_capital(make_config):
+    state = _state(make_config)
+    assert all(agent.score == 0.0 for agent in state.agents)
+
+
+def test_initialize_custom_starting_capital(make_config):
+    state = _state(make_config, starting_capital=9.5)
+    assert all(agent.score == 9.5 for agent in state.agents)
+
+
 def test_distribute_score_equal_share(make_config):
     state = _state(make_config, n_agents=4)
     state.distribute_score(correct_count=2)

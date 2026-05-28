@@ -19,6 +19,8 @@ class GameConfig(BaseModel):
     n_agents: int
     m_informed: int
     share_cost: float
+    starting_capital: float = 0.0 # initial score of every agent
+
     token: str | None = None # by us or randomized if None
     seed: int = 42
     max_rounds: int = 1

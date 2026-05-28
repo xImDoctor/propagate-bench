@@ -2,7 +2,8 @@
 n_agents: 5
 m_informed: 2
 share_cost: 1.0
-max_rounds: 10
+starting_capital: 0.0
+max_rounds: 2
 seed: 42
 
 # LLM and sampling

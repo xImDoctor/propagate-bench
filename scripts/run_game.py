@@ -49,6 +49,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument('--n-agents', type=int, default=None)
     p.add_argument('--m-informed', type=int, default=None)
     p.add_argument('--share-cost', type=float, default=None)
+    p.add_argument('--starting-capital', type=float, default=None)
     p.add_argument('--max-rounds', type=int, default=None)
     p.add_argument('--seed', type=int, default=None)
 
@@ -80,6 +81,7 @@ def build_config(args: argparse.Namespace) -> GameConfig:
             'n_agents': args.n_agents,
             'm_informed': args.m_informed,
             'share_cost': args.share_cost,
+            'starting_capital': args.starting_capital,
             'max_rounds': args.max_rounds,
             'seed': args.seed,
             'model': args.model,

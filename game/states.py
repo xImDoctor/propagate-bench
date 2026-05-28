@@ -50,7 +50,7 @@ class GameState:
         informed_ids = set(rng.sample(range(config.n_agents), config.m_informed))
         
         agents = [
-            AgentState(agent_id = names[i], knows_token = (i in informed_ids))
+            AgentState(agent_id = names[i], knows_token = (i in informed_ids), score=config.starting_capital)
             for i in range(config.n_agents)
         ]
 
