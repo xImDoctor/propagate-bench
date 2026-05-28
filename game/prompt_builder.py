@@ -37,6 +37,15 @@ class PromptBuilder(ABC):
                            unknowing_agents: list[str],
     ) -> str: ...
 
+    # if share candidate is already busy, just offer another
+    @abstractmethod
+    def build_retry_share_prompt(self,
+                                 agent: AgentState,
+                                 round_result: RoundResult,
+                                 available_unknowing: list[str],
+                                 previous_target: str | None,
+    ) -> str: ...
+
     @abstractmethod
     def build_round_summary(self, round_result: RoundResult) -> str: ...
     
@@ -87,6 +96,28 @@ class FakeLLMPromptBuilder(PromptBuilder):
             f"Respond as {{\"share\": bool, \"target\": \"agent_id\"|null, \"reasoning\": \"...\"}}."
         )
     
+    def build_retry_share_prompt(
+            self, agent: AgentState, 
+            round_result: RoundResult, 
+            available_unknowing: list[str], 
+            previous_target: str | None
+    ) -> str:
+        
+        targets = ', '.join(available_unknowing)
+        taken_note = (
+            f"{previous_target} is already being taught by another agent."
+            if previous_target else ""
+        )
+
+        return (
+            f"{taken_note}"
+            f"Your score: {agent.score:.2f}. "
+            f"Still-unknowing agents available to teach: {targets}. "
+            f"Cost to teach: {self.config.share_cost}. "
+            f"Choose another agent to teach or decline. "
+            f"Respond as {{\"share\": bool, \"target\": \"agent_id\"|null, \"reasoning\": \"...\"}}."
+        )
+    
     def build_round_summary(self, round_result: RoundResult) -> str:
         return (
             f"Round {round_result.round_num}: {round_result.correct_count}/{self.config.n_agents} answered correctly. "
@@ -118,6 +149,17 @@ class PromptBuilderV1Baseline(PromptBuilder):
     ) -> str:
         return FakeLLMPromptBuilder(self.config, self.token).build_share_prompt(
             agent, round_result, unknowing_agents
+        )
+    
+    def build_retry_share_prompt(
+            self,
+            agent: AgentState,
+            round_result: RoundResult,
+            available_unknowing: list[str],
+            previous_target: str | None
+    ) -> str:
+        return FakeLLMPromptBuilder(self.config, self.token).build_retry_share_prompt(
+            agent, round_result, available_unknowing, previous_target
         )
     
     def build_round_summary(self, round_result: RoundResult) -> str:

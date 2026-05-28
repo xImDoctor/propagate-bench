@@ -8,5 +8,5 @@ model: fake
 api_type: fake
 
 template_version: v1_baseline
-matcher: random_choice
+matcher: first_come
 payment_mode: teacher_pays

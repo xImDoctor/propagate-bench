@@ -115,10 +115,114 @@ class RandomChoiceMatcher:
             )
 
         return transfers
-    
+
+
+class FirstComeMatcher:
+    """Every knowing agent decides from the same state snapshot.
+    Conflit resolving (2 knowings to 1 unknowing) by selecting
+    first knowing. Second one notes about it and can choose from
+    other free unknowing agents or decline."""
+
+    name = 'first_come'
+
+    def match(
+        self,
+        game_state: GameState,
+        round_result: RoundResult,
+        llm: LLMClient,
+        prompts: PromptBuilder,
+        logger: EventLogger,
+        config: GameConfig,
+        rng: random.Random,
+    ) -> list[Transfer]:
+
+        unknowing_ids = [agent.agent_id for agent in game_state.unknowing_agents()]
+        if not unknowing_ids:
+            return []
+
+        transfers: list[Transfer] = []
+        taken: set[str] = set()
+
+        pending = [agent.agent_id for agent in game_state.knowing_agents()]
+        previous_target: dict[str, str] = {}
+        is_first_round = True
+
+        while pending:
+            available_unknowings = [u for u in unknowing_ids if u not in taken]
+            if not available_unknowings:
+                break
+
+            phase = 'share' if is_first_round else 'share_retry'
+
+            decisions: dict[str, ShareResponse] = {}
+
+            for teacher_id in pending:
+                agent = game_state.get_agent(teacher_id)
+
+                if is_first_round:
+                    prompt_text = prompts.build_share_prompt(agent, round_result, available_unknowings)
+                else:
+                    prompt_text = prompts.build_retry_share_prompt(
+                        agent, round_result, available_unknowings, previous_target.get(teacher_id)
+                    )
+
+                agent.update_context('user', prompt_text)
+                logger.log(
+                    'llm_request',
+                    {'phase': phase, 'available': available_unknowings,
+                    'message_appended': {'role': 'user', 'content': prompt_text}},
+                    agent_id=teacher_id,
+                )
+
+                try:
+                    response = llm.structured_call(agent.context, ShareResponse)
+                    assert isinstance(response, ShareResponse) # check schema
+
+                except Exception as e:
+                    logger.log(
+                        'error',
+                        {'where': 'share_phase', 'exc_type': type(e).__name__, 'message': str(e)},
+                        agent_id=teacher_id,
+                    )
+                    # silent fallback without game breaking
+                    response = ShareResponse(share=False, target=None, reasoning='error')
+
+                agent.update_context('assistant', response.model_dump_json())
+                logger.log('llm_response', {'phase': phase, 'parsed': response.model_dump()},
+                            agent_id=teacher_id)
+                logger.log('share_decision', {**response.model_dump(), 'phase': phase},
+                           agent_id=teacher_id)
+
+                decisions[teacher_id] = response
+
+            # according in a survey order (first teacher of conflicted takes unknowing agent)
+            next_pending: list[str] = []
+            for teacher_id in pending:
+
+                d = decisions[teacher_id]
+                if not d.share or d.target not in available_unknowings:
+                    continue # decline, invalide target
+                if d.target in taken:
+                    previous_target[teacher_id] = d.target
+                    next_pending.append(teacher_id)
+                    continue # already taken - retry
+
+                taken.add(d.target)
+                transfers.append(
+                    Transfer(from_id=teacher_id, to_id=d.target,
+                             cost_teacher=config.share_cost, cost_student=0.0)
+                )
+
+            pending = next_pending
+            is_first_round = False
+
+        return transfers
+
+       
 
 MATCHER_REGISTRY: dict[str, type] = {
     'random_choice': RandomChoiceMatcher,
+    'first_come': FirstComeMatcher,
 }
 
 
