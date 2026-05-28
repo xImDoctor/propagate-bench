@@ -7,8 +7,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ValidationError
 
-from .llm_client import LLMClient
-from .states import ChatMessage
+from .base_client import LLMClient
+from ..states import ChatMessage
 
 DEFAULT_HOST = 'http://localhost:11434'
 

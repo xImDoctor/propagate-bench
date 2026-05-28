@@ -1,6 +1,6 @@
 import random
 
-from game.fake_llm import FakeLLMClient, FakeStrategy
+from game.clients import FakeLLMClient, FakeStrategy
 from game.prompt_builder import AnswerResponse, ShareResponse
 
 

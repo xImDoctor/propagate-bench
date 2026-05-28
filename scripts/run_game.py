@@ -13,11 +13,7 @@ from rich.traceback import install as install_rich_traceback
 
 from game.config import GameConfig
 from game.engine import GameEngine
-
-from game.llm_client import LLMClient
-from game.fake_llm import FakeLLMClient, FakeStrategy
-from game.ollama_llm import OllamaLLMClient
-
+from game.clients import LLMClient, FakeLLMClient, FakeStrategy, OllamaLLMClient
 from game.logger import EventLogger
 
 install_rich_traceback(show_locals=False)

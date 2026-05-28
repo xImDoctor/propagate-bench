@@ -4,8 +4,8 @@ import random
 
 from .config import GameConfig
 
-from .llm_client import LLMClient
-from .states import AgentState, GameState, RoundResult
+from .clients import LLMClient
+from .states import GameState, RoundResult
 
 from .prompt_builder import AnswerResponse, PromptBuilder, create_prompt_builder
 from .agent_matching import Matcher, create_matcher

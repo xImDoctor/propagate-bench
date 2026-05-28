@@ -9,8 +9,8 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from .llm_client import LLMClient
-from .states import ChatMessage
+from .base_client import LLMClient
+from ..states import ChatMessage
 
 
 TOKEN_MARKER_RE = re.compile(r'\[TOKEN\](\d+)\[/TOKEN\]')

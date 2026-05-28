@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from .states import ChatMessage
+from ..states import ChatMessage
 
 
 class LLMClient(ABC):
