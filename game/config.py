@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -33,6 +34,13 @@ class GameConfig(BaseModel):
     initiation_mode: Literal['teacher_only', 'student_only', 'both'] = 'teacher_only'
     payment_mode: Literal['teacher_pays', 'student_pays', 'split'] = 'teacher_pays'
     token_transfer_mode: Literal['direct', 'dialog'] = 'direct'
+
+    @classmethod
+    def from_yaml(cls, path: str | Path) -> 'GameConfig':
+        import yaml
+
+        data = yaml.safe_load(Path(path).read_text(encoding='utf-8'))
+        return cls(**data)
 
 
     @model_validator(mode='after')
