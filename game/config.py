@@ -3,6 +3,15 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, model_validator
 
 
+# 'check list' of implemented modes in config
+IMPLEMENTED_MODES: dict[str, set[str]] = {
+    "matcher": {"random_choice", "first_come"},
+    "initiation_mode": {"teacher_only"},
+    "payment_mode": {"teacher_pays"},
+    "token_transfer_mode": {"direct"},
+}
+
+
 class GameConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra='forbid')
@@ -28,7 +37,8 @@ class GameConfig(BaseModel):
     # prompts and matching
     template_version: str = 'v1_baseline'
     # random choice matcher resolves conflicts of 2 knowings -> 1 unknowing through rng.choice
-    matcher: Literal['random_choice', 'mutual_consent'] = 'random_choice'
+    # first come matcher does it selecting just first of teacher agents
+    matcher: Literal['random_choice', 'first_come', 'mutual_consent'] = 'first_come'
 
     # experiment modes
     initiation_mode: Literal['teacher_only', 'student_only', 'both'] = 'teacher_only'
@@ -61,15 +71,15 @@ class GameConfig(BaseModel):
             if len(set(self.agent_names)) != len(self.agent_names):
                 raise ValueError('agent_names must be unique')
 
-        # stubs for modes that not implemented yet
-        if self.matcher != 'random_choice':
-            raise NotImplementedError(f"matcher={self.matcher!r} not implemented yet")
-        if self.initiation_mode != 'teacher_only':
-            raise NotImplementedError(f"initiation_mode={self.initiation_mode!r} not implemented yet")
-        if self.payment_mode != 'teacher_pays':
-            raise NotImplementedError(f"payment_mode={self.payment_mode!r} not implemented yet")
-        if self.token_transfer_mode != 'direct':
-            raise NotImplementedError(f"transfer_mode={self.token_transfer_mode!r} not implemented yet")
+        # stubs for modes that not implemented yet through IMPLEMENTED_MODES
+        for field, allowed in IMPLEMENTED_MODES.items():
+            value = getattr(self, field)
 
+            if value not in allowed:
+                raise NotImplementedError(
+                    f"{field}={value!r} not implemented yet.\n"
+                    f"Available: {sorted(allowed)}"
+                )
+        
         return self
         
