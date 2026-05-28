@@ -25,7 +25,7 @@ class GameConfig(BaseModel):
     max_retries: int = 1
 
     # prompts and matching
-    template_version: str = 'prompt_v1'
+    template_version: str = 'v1_baseline'
     # random choice matcher resolves conflicts of 2 knowings -> 1 unknowing through rng.choice
     matcher: Literal['random_choice', 'mutual_consent'] = 'random_choice'
 
