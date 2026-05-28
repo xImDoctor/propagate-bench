@@ -13,8 +13,11 @@ from rich.traceback import install as install_rich_traceback
 
 from game.config import GameConfig
 from game.engine import GameEngine
+
 from game.llm_client import LLMClient
 from game.fake_llm import FakeLLMClient, FakeStrategy
+from game.ollama_llm import OllamaLLMClient
+
 from game.logger import EventLogger
 
 install_rich_traceback(show_locals=False)
@@ -25,9 +28,17 @@ def build_llm(config: GameConfig, rng: random.Random, strategy: FakeStrategy) ->
 
     if config.api_type == 'fake':
         return FakeLLMClient(strategy=strategy, rng=rng)
-    
-    # TODO: connect ollama/api
-    raise NotImplementedError(f"apy_type={config.api_type!r} not implemented to run_game yet")
+
+    if config.api_type == 'ollama':
+        return OllamaLLMClient(
+            model=config.model,
+            seed=config.seed,
+            max_retries=config.max_retries,
+            request_timeout=config.request_timeout,
+        )
+
+    # TODO: connect cloud api
+    raise NotImplementedError(f"api_type={config.api_type!r} not implemented to run_game yet")
 
 
 def parse_args() -> argparse.Namespace:
