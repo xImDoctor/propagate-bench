@@ -46,11 +46,6 @@ def test_agent_names_duplicates(make_config):
         make_config(n_agents=3, m_informed=1, agent_names=['a', 'a', 'b'])
 
 
-def test_reserved_mode_not_implemented(make_config):
-    with pytest.raises(NotImplementedError):
-        make_config(matcher='mutual_consent')
-
-
 def test_reserved_payment_mode_not_implemented(make_config):
     with pytest.raises(NotImplementedError):
         make_config(payment_mode='split')

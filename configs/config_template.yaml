@@ -1,12 +1,18 @@
+# base parameters
 n_agents: 5
 m_informed: 2
 share_cost: 1.0
-max_rounds: 20
+max_rounds: 10
 seed: 42
 
-model: fake
-api_type: fake
+# LLM and sampling
+# model, api_type: fake - for pre-coded run
+model: llama3.2:3b
+api_type: ollama
+temperature: 0.7
+top_p: 1.0
 
+# Prompt template, matcher logic, payment mode
 template_version: v1_baseline
 matcher: first_come
 payment_mode: teacher_pays

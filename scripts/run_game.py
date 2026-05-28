@@ -29,6 +29,8 @@ def build_llm(config: GameConfig, rng: random.Random, strategy: FakeStrategy) ->
         return OllamaLLMClient(
             model=config.model,
             seed=config.seed,
+            temperature=config.temperature,
+            top_p=config.top_p,
             max_retries=config.max_retries,
             request_timeout=config.request_timeout,
         )
@@ -49,8 +51,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument('--share-cost', type=float, default=None)
     p.add_argument('--max-rounds', type=int, default=None)
     p.add_argument('--seed', type=int, default=None)
+
     p.add_argument('--model', type=str, default=None)
     p.add_argument('--api-type', type=str, default=None)
+    p.add_argument('--temperature', type=float, default=None)
+    p.add_argument('--top-p', type=float, default=None)
+
     p.add_argument('--template-version', type=str, default=None)
     p.add_argument('--matcher', type=str, default=None)
 
@@ -78,6 +84,8 @@ def build_config(args: argparse.Namespace) -> GameConfig:
             'seed': args.seed,
             'model': args.model,
             'api_type': args.api_type,
+            'temperature': args.temperature,
+            'top_p': args.top_p,
             'template_version': args.template_version,
             'matcher': args.matcher,
         }.items() if v is not None

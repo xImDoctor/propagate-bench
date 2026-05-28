@@ -28,9 +28,9 @@ class GameConfig(BaseModel):
     # LLM
     model: str
     api_type: Literal['ollama', 'together', 'fake']
-    # TODO: talk abt LLM params
-    # top_p: float = 1.0
-    # temperature: float = 0.7
+
+    top_p: float = 1.0
+    temperature: float = 0.7
     request_timeout: float = 60.0 # sec
     max_retries: int = 1
 
@@ -38,7 +38,7 @@ class GameConfig(BaseModel):
     template_version: str = 'v1_baseline'
     # random choice matcher resolves conflicts of 2 knowings -> 1 unknowing through rng.choice
     # first come matcher does it selecting just first of teacher agents
-    matcher: Literal['random_choice', 'first_come', 'mutual_consent'] = 'first_come'
+    matcher: Literal['random_choice', 'first_come'] = 'first_come'
 
     # experiment modes
     initiation_mode: Literal['teacher_only', 'student_only', 'both'] = 'teacher_only'

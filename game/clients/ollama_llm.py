@@ -20,6 +20,7 @@ class OllamaLLMClient(LLMClient):
         base_url: str | None = None,
         seed: int | None = None,
         temperature: float | None = None,
+        top_p: float | None = None,
         max_retries: int = 1,
         request_timeout: float = 60.0,
         token_log_path: Path = Path('token_usage.txt'),
@@ -32,6 +33,7 @@ class OllamaLLMClient(LLMClient):
         self.client = Client(host=host, timeout=request_timeout)
         self.seed = seed
         self.temperature = temperature
+        self.top_p = top_p
         self.max_retries = max_retries
 
     def structured_call(
@@ -47,6 +49,9 @@ class OllamaLLMClient(LLMClient):
 
         if self.temperature is not None:
             options['temperature'] = self.temperature
+
+        if self.top_p is not None:
+            options['top_p'] = self.top_p
 
         fmt = schema.model_json_schema()
         call_messages = list(messages)
