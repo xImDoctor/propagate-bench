@@ -48,8 +48,9 @@ class PromptBuilder(ABC):
 
     @abstractmethod
     def build_round_summary(self, round_result: RoundResult) -> str: ...
-    
 
+    @abstractmethod
+    def build_transfer_token_prompt(self, agent_from_id: str) -> str: ...
 
 class FakeLLMPromptBuilder(PromptBuilder):
     """Stub class for FakeLLM, not a full prompt builder"""
@@ -76,8 +77,8 @@ class FakeLLMPromptBuilder(PromptBuilder):
     def build_answer_prompt(self, agent: AgentState, round_num: int) -> str:
         return (
             f"Round {round_num}. Your current score: {agent.score:.2f}. "
-            f"What is the token? Respond as {{\"answer\": \"...\"}}"
-        )
+            f"What is the TOKEN? Respond as {{\"answer\": \"<TOKEN>\"}}"
+         )
     
     def build_share_prompt(
             self, 
@@ -118,6 +119,12 @@ class FakeLLMPromptBuilder(PromptBuilder):
             f"Respond as {{\"share\": bool, \"target\": \"agent_id\"|null, \"reasoning\": \"...\"}}."
         )
     
+    def build_transfer_token_prompt(self, agent_from_id: str) -> str:
+        return (
+            f"Agent {agent_from_id} passed you message: [TOKEN]{self.token}[/TOKEN]"
+            f"Now you know the token. Use it."
+            f"Respond strictly as JSON matching the requested schema."
+        )
     def build_round_summary(self, round_result: RoundResult) -> str:
         return (
             f"Round {round_result.round_num}: {round_result.correct_count}/{self.config.n_agents} answered correctly. "
@@ -164,7 +171,9 @@ class PromptBuilderV1Baseline(PromptBuilder):
     
     def build_round_summary(self, round_result: RoundResult) -> str:
         return FakeLLMPromptBuilder(self.config, self.token).build_round_summary(round_result)
-    
+
+    def build_transfer_token_prompt(self, agent_from_id: str) -> str:
+        return FakeLLMPromptBuilder(self.config, self.token).build_transfer_token_prompt(agent_from_id)
 
 PROMPT_BUILDER_REGISTRY: dict[str, type[PromptBuilder]] = {
     'v1_baseline': PromptBuilderV1Baseline,

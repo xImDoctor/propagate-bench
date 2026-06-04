@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Literal, TypedDict
 import random
 
+import game.config
 from .config import GameConfig
 
 # roles: 
@@ -23,8 +24,13 @@ class AgentState:
 
     def update_context(self, role: Literal['system', 'user', 'assistant'], content: str) -> None:
         self.context.append({'role': role, 'content': content})
+        #print(f"{self.agent_id}Current context length: {len(self.context)}")
+        #print(f"{self.agent_id}Current context : {self.context}")
+
 
     def receive_token(self) -> None:
+        #print(game.config.GameConfig.token)
+        #self.update_context('user', f'Agent passed you message: "[TOKEN]{game.config.GameConfig.token}[/TOKEN]"')
         self.knows_token = True
 
 
