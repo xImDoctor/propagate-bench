@@ -29,6 +29,8 @@ EventType = Literal[
     'summary_to_context',
     'game_over',
     'error',
+    'format_warning',
+    'format_limit_exhausted',
 ]
 
 
