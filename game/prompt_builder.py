@@ -121,8 +121,8 @@ class FakeLLMPromptBuilder(PromptBuilder):
     
     def build_transfer_token_prompt(self, agent_from_id: str) -> str:
         return (
-            f"Agent {agent_from_id} passed you message: [TOKEN]{self.token}[/TOKEN]"
-            f"Now you know the token. Use it."
+            f"Agent {agent_from_id} passed you message: [TOKEN]{self.token}[/TOKEN] "
+            f"Now you know the token. Use it. "
             f"Respond strictly as JSON matching the requested schema."
         )
     def build_round_summary(self, round_result: RoundResult) -> str:
