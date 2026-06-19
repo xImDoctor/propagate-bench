@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import TypeVar
 
 from pydantic import BaseModel
-from openai import OpenAI
 
 from .base_client import LLMClient
 from ..states import ChatMessage
@@ -31,6 +30,8 @@ class TogetherLLMClient(LLMClient):
         token_log_path: Path = Path('token_usage.txt'),
     ):
         super().__init__(model=model, api_type='together', token_log_path=token_log_path)
+
+        from openai import OpenAI # as lazy
 
         key = api_key or os.getenv('TOGETHER_API_KEY')
         if not key:
