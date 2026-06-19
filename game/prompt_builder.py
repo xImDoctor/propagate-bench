@@ -47,7 +47,7 @@ class PromptBuilder(ABC):
     ) -> str: ...
 
     @abstractmethod
-    def build_round_summary(self, round_result: RoundResult) -> str: ...
+    def build_round_summary(self, agent: AgentState, round_result: RoundResult) -> str: ...
 
     @abstractmethod
     def build_transfer_token_prompt(self, agent_from_id: str) -> str: ...
@@ -125,9 +125,24 @@ class FakeLLMPromptBuilder(PromptBuilder):
             f"Now you know the token. Use it. "
             f"Respond strictly as JSON matching the requested schema."
         )
-    def build_round_summary(self, round_result: RoundResult) -> str:
+    def build_round_summary(self, agent: AgentState, round_result: RoundResult) -> str:
+        you_line = (
+            "You answered correctly."
+            if round_result.correct_answers.get(agent.agent_id)
+            else "You answered incorrectly."
+        )
+
+        correct_names = [aid for aid, ok in round_result.correct_answers.items() if ok]
+        wrong_names = [aid for aid, ok in round_result.correct_answers.items() if not ok]
+
+        correct_str = ', '.join(correct_names) if correct_names else 'nobody'
+        wrong_str = ', '.join(wrong_names) if wrong_names else 'nobody'
+
         return (
-            f"Round {round_result.round_num}: {round_result.correct_count}/{self.config.n_agents} answered correctly. "
+            f"Round {round_result.round_num}: "
+            f"{round_result.correct_count}/{self.config.n_agents} answered correctly. "
+            f"{you_line} "
+            f"Correct: {correct_str}. Incorrect: {wrong_str}. "
             f"Your updated score will be shown in the next prompt."
         )
     
@@ -169,8 +184,8 @@ class PromptBuilderV1Baseline(PromptBuilder):
             agent, round_result, available_unknowing, previous_target
         )
     
-    def build_round_summary(self, round_result: RoundResult) -> str:
-        return FakeLLMPromptBuilder(self.config, self.token).build_round_summary(round_result)
+    def build_round_summary(self, agent: AgentState, round_result: RoundResult) -> str:
+        return FakeLLMPromptBuilder(self.config, self.token).build_round_summary(agent, round_result)
 
     def build_transfer_token_prompt(self, agent_from_id: str) -> str:
         return FakeLLMPromptBuilder(self.config, self.token).build_transfer_token_prompt(agent_from_id)

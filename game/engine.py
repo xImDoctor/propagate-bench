@@ -180,11 +180,10 @@ class GameEngine:
             },
         )
 
-        round_summary = self.prompts.build_round_summary(round_result)
-
         for agent in self.game_state.agents:
+            round_summary = self.prompts.build_round_summary(agent, round_result)
             agent.update_context('user', round_summary)
-                                 
+
             self.logger.log(
                 'summary_to_context',
                 {'phase': 'round_summary', 'content': round_summary},
