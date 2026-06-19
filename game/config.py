@@ -34,7 +34,8 @@ class GameConfig(BaseModel):
     top_p: float = 1.0
     temperature: float = 0.7
     request_timeout: float = 60.0 # sec
-    max_retries: int = 1
+    max_retries: int = 1    # max val of llm call retries (universal counter now)
+    max_tokens: int = 4112  # max token count for API calls
 
     # prompts and matching
     template_version: str = 'v1_baseline'
@@ -66,6 +67,12 @@ class GameConfig(BaseModel):
             raise ValueError('share_cost must be >= 0')
         if self.max_rounds < 1:
             raise ValueError('max_rounds must be >=1')
+        
+        if self.max_retries < 0:
+            raise ValueError('max_retries must be >= 0')
+        
+        if self.api_type == 'together' and self.max_tokens <= 0:
+            raise ValueError('max_tokens must be >0 to run with Together API')
         
         if self.agent_names is not None:
             if len(self.agent_names) != self.n_agents:
