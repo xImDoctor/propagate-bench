@@ -10,6 +10,8 @@ from .states import GameState, RoundResult
 from .prompt_builder import AnswerResponse, PromptBuilder, create_prompt_builder
 from .agent_matching import Matcher, create_matcher
 
+from .llm_runner import call_with_retry
+
 from .logger import EventLogger
 
 
@@ -111,43 +113,28 @@ class GameEngine:
         for agent in self.game_state.agents:
             prompt_text = self.prompts.build_answer_prompt(agent, self.game_state.round)
 
-            agent.update_context('user', prompt_text)
-            self.logger.log(
-                'llm_request',
-                {'phase': 'answer', 'appended_message': {'role': 'user', 'content': prompt_text}},
-                agent_id=agent.agent_id,
+            # prompt logging is inside of method, it provides schema validation and retry logic
+            response = call_with_retry(
+                agent, prompt_text, AnswerResponse, self.llm, self.logger, 
+                'answer', self.config.max_retries,
             )
-
-            try:
-                response = self.llm.structured_call(agent.context, AnswerResponse)
-                assert isinstance(response, AnswerResponse) # check resp structure
-
-                answer_str = response.answer
-                agent.update_context('assistant', response.model_dump_json())
-                self.logger.log(
-                    'llm_response',
-                    {'phase': 'answer', 'parsed': response.model_dump()},
-                    agent_id=agent.agent_id,
-                )
-
-            except Exception as e:
-                self.logger.log(
-                    'error',
-                    {'where': 'answer_phase', 'exc_type': type(e).__name__, 'message': str(e)},
-                    agent_id=agent.agent_id
-                )
-                answer_str = ''
-
+            answer_str = response.answer if response else ''
             is_correct = answer_str.strip() == self.token
             answers[agent.agent_id] = answer_str
             correct[agent.agent_id] = is_correct
-            
+
             self.logger.log(
                 'answer',
                 {'answer': answer_str, 'is_correct': is_correct},
                 agent_id=agent.agent_id,
             )
 
+            if agent.knows_token and not is_correct:
+                self.logger.log(
+                    'informed_agent_wrong',
+                    {'expected_token': self.token, 'actual_answer': answer_str},
+                    agent_id=agent.agent_id,
+                )
 
         return RoundResult(
             round_num=self.game_state.round,
