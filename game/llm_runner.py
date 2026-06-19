@@ -11,6 +11,22 @@ from .clients import LLMClient
 from .logger import EventLogger
 
 
+class FormatLimitExhausted(Exception):
+    """Raised by call_with_retry if agent 
+    fails response with valid schema more
+    than max_retrires+1 attempts."""
+
+    def __init__(self, agent_id: str, phase: str, attempts: int):
+        self.agent_id = agent_id
+        self.phase = phase
+        self.attempts = attempts
+
+        super().__init__(
+            f"{agent_id} failed to produce schema-valid response "
+            f"during {attempts} attempts on phase {phase!r}"
+        )
+
+
 def call_with_retry(
         agent: AgentState, 
         prompt_text: str, 
@@ -78,5 +94,5 @@ def call_with_retry(
         agent_id=agent.agent_id,
     )
 
-    return None
+    raise FormatLimitExhausted(agent.agent_id, phase, max_attempts)
 

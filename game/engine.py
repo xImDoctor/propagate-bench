@@ -10,7 +10,7 @@ from .states import GameState, RoundResult
 from .prompt_builder import AnswerResponse, PromptBuilder, create_prompt_builder
 from .agent_matching import Matcher, create_matcher
 
-from .llm_runner import call_with_retry
+from .llm_runner import call_with_retry, FormatLimitExhausted
 
 from .logger import EventLogger
 
@@ -73,35 +73,54 @@ class GameEngine:
             )
 
     def run(self) -> None:
+
+        stop_reason: str
+        stuck_info: dict | None = None
         
-        while not self.game_state.game_over:
-            self.game_state.round += 1
-            self.logger.set_round(self.game_state.round)
-            self.logger.log('round_start', {})
+        try: 
+            while not self.game_state.game_over:
+                self.game_state.round += 1
+                self.logger.set_round(self.game_state.round)
+                self.logger.log('round_start', {})
 
-            round_result = self._run_answer_phase()
-            self._run_scoring_phase(round_result)
-            self._run_communication_phase(round_result)
+                round_result = self._run_answer_phase()
+                self._run_scoring_phase(round_result)
+                self._run_communication_phase(round_result)
 
-            self.logger.log(
-                'round_summary',
-                {
-                    'answers': round_result.answers,
-                    'correct': round_result.correct_answers,
-                    'scores_after': round_result.scores_after,
-                }
-            )
+                self.logger.log(
+                    'round_summary',
+                    {
+                        'answers': round_result.answers,
+                        'correct': round_result.correct_answers,
+                        'scores_after': round_result.scores_after,
+                    }
+                )
 
-            self.game_state.check_stop(self.config.max_rounds)
+                self.game_state.check_stop(self.config.max_rounds)
 
-        stop_reason = 'all_know' if all(agent.knows_token for agent in self.game_state.agents) else 'max_rounds'
-        self.logger.log(
-            'game_over',
-            {
+            stop_reason = 'all_know' if all(agent.knows_token for agent in self.game_state.agents) else 'max_rounds'
+        
+        # stops game if one of agents stuck on schema format
+        except FormatLimitExhausted as e:
+            stop_reason = 'format_limit_exhausted'
+            stuck_info = {
+                'stuck_agent_id': e.agent_id,
+                'stuck_phase': e.phase,
+                'stuck_attempts': e.attempts,
+            }
+
+        payload = {
             'reason': stop_reason,
             'n_rounds': self.game_state.round,
             'final_scores': {agent.agent_id: agent.score for agent in self.game_state.agents},
-            },
+        }
+
+        if stuck_info:
+            payload.update(stuck_info) # swap to stuck_info if agent stuck
+
+        self.logger.log(
+            'game_over',
+            payload,
         )
 
 
