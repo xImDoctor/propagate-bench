@@ -35,7 +35,7 @@ class TogetherLLMClient(LLMClient):
 
 
         self.client = OpenAI(
-            api_key=api_key,
+            api_key=key,
             base_url=base_url or DEFAULT_BASE_URL,
             timeout=request_timeout,
         )
