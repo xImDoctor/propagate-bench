@@ -4,6 +4,7 @@ Ollama LLM client with structured output via JSON-schema format.
 
 import os
 from pathlib import Path
+from typing import TypeVar
 
 from pydantic import BaseModel, ValidationError
 
@@ -11,6 +12,8 @@ from .base_client import LLMClient
 from ..states import ChatMessage
 
 DEFAULT_HOST = 'http://localhost:11434'
+
+T = TypeVar('T', bound=BaseModel)
 
 
 class OllamaLLMClient(LLMClient):
@@ -37,8 +40,8 @@ class OllamaLLMClient(LLMClient):
     def structured_call(
         self,
         messages: list[ChatMessage],
-        schema: type[BaseModel],
-    ) -> BaseModel:
+        schema: type[T],
+    ) -> T:
         
         options: dict = {}
 

@@ -3,6 +3,8 @@ Module for LLM running utils.
 Now implements model calling with retry logic.
 """
 
+from typing import TypeVar
+
 from pydantic import BaseModel, ValidationError
 from json import JSONDecodeError
 
@@ -27,15 +29,17 @@ class FormatLimitExhausted(Exception):
         )
 
 
+T = TypeVar('T', bound=BaseModel)
+
 def call_with_retry(
         agent: AgentState, 
         prompt_text: str, 
-        schema: type[BaseModel], 
+        schema: type[T], 
         llm: LLMClient, 
         logger: EventLogger, 
         phase: str, 
         max_retries: int,
-    ) -> BaseModel | None:
+    ) -> T | None:
 
     max_attempts = max_retries + 1 # counts first run too
 

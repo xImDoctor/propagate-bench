@@ -1,10 +1,13 @@
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import TypeVar
 
 from pydantic import BaseModel
 
 from ..states import ChatMessage
+
+T = TypeVar('T', bound=BaseModel)
 
 
 class LLMClient(ABC):
@@ -14,7 +17,7 @@ class LLMClient(ABC):
         self.token_log_path = Path(token_log_path)
 
     @abstractmethod
-    def structured_call(self, messages, schema) -> BaseModel:
+    def structured_call(self, messages: list[ChatMessage], schema: type[T]) -> T:
         """Sends messages, returns parsed+validated instance of schema.
 
         Raises ValidationError/JSONDecodeError on parse failure, other

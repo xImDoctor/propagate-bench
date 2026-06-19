@@ -4,6 +4,7 @@ LLM client for Together.ai with structured output via JSON-schema format.
 
 import os
 from pathlib import Path
+from typing import TypeVar
 
 from pydantic import BaseModel
 from openai import OpenAI
@@ -12,6 +13,8 @@ from .base_client import LLMClient
 from ..states import ChatMessage
 
 DEFAULT_BASE_URL = 'https://api.together.xyz/v1'
+
+T = TypeVar('T', bound=BaseModel)
 
 
 class TogetherLLMClient(LLMClient):
@@ -47,8 +50,8 @@ class TogetherLLMClient(LLMClient):
     def structured_call(
         self,
         messages: list[ChatMessage],
-        schema: type[BaseModel],
-    ) -> BaseModel:
+        schema: type[T],
+    ) -> T:
         
         kwargs = {
             'model': self.model,

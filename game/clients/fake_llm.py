@@ -6,12 +6,15 @@ import random
 import re
 from enum import Enum
 from pathlib import Path
+from typing import TypeVar
 
 from pydantic import BaseModel
 
 from .base_client import LLMClient
 from ..states import ChatMessage
 
+
+T = TypeVar('T', bound=BaseModel)
 
 TOKEN_MARKER_RE = re.compile(r'\[TOKEN\](\d+)\[/TOKEN\]')
 
@@ -39,8 +42,8 @@ class FakeLLMClient(LLMClient):
     def structured_call(
         self,
         messages: list[ChatMessage],
-        schema: type[BaseModel],
-    ) -> BaseModel:
+        schema: type[T],
+    ) -> T:
         response = self._fabricate(messages, schema)
         result = schema.model_validate(response)
 
@@ -51,7 +54,7 @@ class FakeLLMClient(LLMClient):
 
         return result
 
-    def _fabricate(self, messages: list[ChatMessage], schema: type[BaseModel]) -> dict:
+    def _fabricate(self, messages: list[ChatMessage], schema: type[T]) -> dict:
         known_token = self._extract_token(messages)
         field_names = set(schema.model_fields.keys())
 
