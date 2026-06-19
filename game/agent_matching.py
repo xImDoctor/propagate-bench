@@ -67,7 +67,9 @@ class RandomChoiceMatcher:
             response = call_with_retry(
                 agent, prompt_text, ShareResponse,
                 llm, logger, 'share', config.max_retries,
+                extra_request_payload={'available': unknowing_ids},
             )
+
             if response is None:
                 response = ShareResponse(share=False, target=None, reasoning='format_limit_exhausted')
             
@@ -152,6 +154,7 @@ class FirstComeMatcher:
                 response = call_with_retry(
                     agent, prompt_text, ShareResponse,
                     llm, logger, phase, config.max_retries,
+                    extra_request_payload={'available': available_unknowings},
                 )
                 if response is None:
                     response = ShareResponse(share=False, target=None, reasoning='format_limit_exhausted')

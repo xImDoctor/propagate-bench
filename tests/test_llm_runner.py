@@ -141,3 +141,20 @@ def test_format_warning_and_limit_events_logged(agent, tmp_path):
     events = [r['event'] for r in _read_events(log_path)]
     assert events.count('format_warning') == 2          # max_retries+1 attempts, all failed
     assert events.count('format_limit_exhausted') == 1
+
+
+def test_extra_request_payload_merged_into_llm_request(agent, tmp_path):
+    
+    log_path = tmp_path / 'run.jsonl'
+    client = _ScriptedClient([('return', {'answer': 'ok'})])
+
+    with EventLogger(log_path) as lg:
+        call_with_retry(
+            agent, 'q', _Toy, client, lg, phase='share', max_retries=0,
+            extra_request_payload={'available': ['agent_1', 'agent_2']},
+        )
+
+    req = next(r for r in _read_events(log_path) if r['event'] == 'llm_request')
+
+    assert req['payload']['available'] == ['agent_1', 'agent_2']
+    assert req['payload']['phase'] == 'share'  # base fields saved

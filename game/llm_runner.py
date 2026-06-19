@@ -39,21 +39,22 @@ def call_with_retry(
         logger: EventLogger, 
         phase: str, 
         max_retries: int,
+        extra_request_payload: dict | None = None, # additional fields to dict if needed
     ) -> T | None:
 
     max_attempts = max_retries + 1 # counts first run too
 
     for attempt in range(1, max_attempts + 1):
         agent.update_context('user', prompt_text)
-        logger.log(
-            'llm_request',
-            {
-                'phase': phase,
-                'attempt': attempt,
-                'message_appended': {'role': 'user', 'content': prompt_text},
-            },
-            agent_id=agent.agent_id,
-        )
+
+        request_payload = dict(extra_request_payload or {})
+        request_payload.update({
+            'phase': phase,
+            'attempt': attempt,
+            'message_appended': {'role': 'user', 'content': prompt_text},
+        })
+
+        logger.log('llm_request', request_payload, agent_id=agent.agent_id)
 
         try:
             response = llm.structured_call(agent.context, schema)
