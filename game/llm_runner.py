@@ -17,7 +17,7 @@ def call_with_retry(
         schema: type[BaseModel], 
         llm: LLMClient, 
         logger: EventLogger, 
-        phase: int, 
+        phase: str, 
         max_retries: int,
     ) -> BaseModel | None:
 
