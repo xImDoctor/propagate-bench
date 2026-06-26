@@ -86,7 +86,8 @@ Uses `always_share` strategy as default. Use `--fake-strategy` as CLI argument t
 ## Other scripts
 
 ```bash
-# dump all prompt templates of a builder to markdown (stubs for token/ids/scores)
+# dump prompt templates of a builder to markdown - one file per game mode
+# writes prompts_<version>_anonymous.md and prompts_<version>_named.md
 python scripts/dump_prompts.py --template-version v1_baseline
 
 # single-call sanity check against a Together model (needs TOGETHER_API_KEY)
