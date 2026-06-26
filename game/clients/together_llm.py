@@ -58,7 +58,7 @@ class TogetherLLMClient(LLMClient):
             'model': self.model,
             'messages': list(messages),
             'response_format': {
-                'type': 'json_schema',
+                'type': 'json_object',
                 'schema': schema.model_json_schema(),
             },
             'max_tokens': self.max_tokens,

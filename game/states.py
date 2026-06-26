@@ -4,7 +4,6 @@ import random
 from dataclasses import dataclass, field
 from typing import Literal, TypedDict
 
-import game.config
 from .config import GameConfig
 
 # roles: 

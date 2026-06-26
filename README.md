@@ -12,7 +12,8 @@ source venv/bin/activate    # Linux
 pip install -r requirements.txt
 ```
 
-For ollama-run local ollama server must be started.
+For `ollama` runs - local ollama server must be started.
+For `together` runs - set `TOGETHER_API_KEY` in `.env` at repo root.
 
 ## Run
 
@@ -46,6 +47,7 @@ Console inline args overwrite values from YAML-config. Log traces to `logs/`.
 | `--api-type` | str | `fake` / `ollama` / `together` |
 | `--temperature` | float | LLM sampling |
 | `--top-p` | float | LLM sampling |
+| `--request-timeout` | float | seconds per LLM call (default `60`, raise for slow models) |
 | `--template-version` | str | key in `PROMPT_BUILDER_REGISTRY` (`v1_baseline` now) |
 | `--matcher` | str | `random_choice` / `first_come` |
 | `--fake-strategy` | str | `FakeLLMClient` behavior in the share phase: `always_share` / `never_share` / `random_share` |
@@ -81,6 +83,19 @@ matcher: first_come
 Use `model: fake`, `api_type: fake` to init pre-coded run without LLM models.
 Uses `always_share` strategy as default. Use `--fake-strategy` as CLI argument to swap.
 
+## Other scripts
+
+```bash
+# dump all prompt templates of a builder to markdown (stubs for token/ids/scores)
+python scripts/dump_prompts.py --template-version v1_baseline
+
+# single-call sanity check against a Together model (needs TOGETHER_API_KEY)
+python scripts/probe_together.py openai/gpt-oss-20b
+
+# ask one agent "how many rounds do you expect?" - JSONL out, supports seed sweeps
+python scripts/probe_rounds.py configs/config_template.yaml --seeds-file probes/seeds.txt
+```
+
 ## Tests
 
 ```bash
@@ -89,4 +104,4 @@ python -m pytest
 
 ## Cost accounting (after runs)
 
-Token accounting impelemnted to `LLMClient`, it saves `token_usage.txt` to root folder but does not count usage cost.
+Token accounting implemented in `LLMClient`, saves `token_usage.txt` to root folder but does not count usage cost.

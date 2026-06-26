@@ -101,6 +101,7 @@ def build_config(args: argparse.Namespace) -> GameConfig:
             'api_type': args.api_type,
             'temperature': args.temperature,
             'top_p': args.top_p,
+            'request_timeout': args.request_timeout,
             'template_version': args.template_version,
             'matcher': args.matcher,
         }.items() if v is not None

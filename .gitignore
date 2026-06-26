@@ -1,7 +1,9 @@
 # game ignores
 logs/
+probes/
 
-token_usage.txt
+*token_usage.txt
+prompts_*.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
