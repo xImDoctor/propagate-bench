@@ -215,10 +215,7 @@ class GameEngine:
                 },
             )
 
-            prompt_text_transfer_token = self.prompts.build_transfer_token_prompt(t.to_id)
-            
-            #agent = next((agent for agent in self.game_state.agents if agent.agent_id == t.to_id), None)
-            #agent.update_context('user', prompt_text_transfer_token)
+            prompt_text_transfer_token = self.prompts.build_transfer_token_prompt(t.from_id)
             
             receiver = self.game_state.get_agent(t.to_id)
             receiver.update_context('user', prompt_text_transfer_token)
