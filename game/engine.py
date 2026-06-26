@@ -10,6 +10,8 @@ from .states import GameState, RoundResult
 from .prompt_builder import AnswerResponse, PromptBuilder, create_prompt_builder
 from .agent_matching import Matcher, create_matcher
 
+from .llm_runner import call_with_retry, FormatLimitExhausted
+
 from .logger import EventLogger
 
 
@@ -71,35 +73,54 @@ class GameEngine:
             )
 
     def run(self) -> None:
+
+        stop_reason: str
+        stuck_info: dict | None = None
         
-        while not self.game_state.game_over:
-            self.game_state.round += 1
-            self.logger.set_round(self.game_state.round)
-            self.logger.log('round_start', {})
+        try: 
+            while not self.game_state.game_over:
+                self.game_state.round += 1
+                self.logger.set_round(self.game_state.round)
+                self.logger.log('round_start', {})
 
-            round_result = self._run_answer_phase()
-            self._run_scoring_phase(round_result)
-            self._run_communication_phase(round_result)
+                round_result = self._run_answer_phase()
+                self._run_scoring_phase(round_result)
+                self._run_communication_phase(round_result)
 
-            self.logger.log(
-                'round_summary',
-                {
-                    'answers': round_result.answers,
-                    'correct': round_result.correct_answers,
-                    'scores_after': round_result.scores_after,
-                }
-            )
+                self.logger.log(
+                    'round_summary',
+                    {
+                        'answers': round_result.answers,
+                        'correct': round_result.correct_answers,
+                        'scores_after': round_result.scores_after,
+                    }
+                )
 
-            self.game_state.check_stop(self.config.max_rounds)
+                self.game_state.check_stop(self.config.max_rounds)
 
-        stop_reason = 'all_know' if all(agent.knows_token for agent in self.game_state.agents) else 'max_rounds'
-        self.logger.log(
-            'game_over',
-            {
+            stop_reason = 'all_know' if all(agent.knows_token for agent in self.game_state.agents) else 'max_rounds'
+        
+        # stops game if one of agents stuck on schema format
+        except FormatLimitExhausted as e:
+            stop_reason = 'format_limit_exhausted'
+            stuck_info = {
+                'stuck_agent_id': e.agent_id,
+                'stuck_phase': e.phase,
+                'stuck_attempts': e.attempts,
+            }
+
+        payload = {
             'reason': stop_reason,
             'n_rounds': self.game_state.round,
             'final_scores': {agent.agent_id: agent.score for agent in self.game_state.agents},
-            },
+        }
+
+        if stuck_info:
+            payload.update(stuck_info) # swap to stuck_info if agent stuck
+
+        self.logger.log(
+            'game_over',
+            payload,
         )
 
 
@@ -111,43 +132,28 @@ class GameEngine:
         for agent in self.game_state.agents:
             prompt_text = self.prompts.build_answer_prompt(agent, self.game_state.round)
 
-            agent.update_context('user', prompt_text)
-            self.logger.log(
-                'llm_request',
-                {'phase': 'answer', 'appended_message': {'role': 'user', 'content': prompt_text}},
-                agent_id=agent.agent_id,
+            # prompt logging is inside of method, it provides schema validation and retry logic
+            response = call_with_retry(
+                agent, prompt_text, AnswerResponse, self.llm, self.logger, 
+                'answer', self.config.max_retries,
             )
-
-            try:
-                response = self.llm.structured_call(agent.context, AnswerResponse)
-                assert isinstance(response, AnswerResponse) # check resp structure
-
-                answer_str = response.answer
-                agent.update_context('assistant', response.model_dump_json())
-                self.logger.log(
-                    'llm_response',
-                    {'phase': 'answer', 'parsed': response.model_dump()},
-                    agent_id=agent.agent_id,
-                )
-
-            except Exception as e:
-                self.logger.log(
-                    'error',
-                    {'where': 'answer_phase', 'exc_type': type(e).__name__, 'message': str(e)},
-                    agent_id=agent.agent_id
-                )
-                answer_str = ''
-
+            answer_str = response.answer if response else ''
             is_correct = answer_str.strip() == self.token
             answers[agent.agent_id] = answer_str
             correct[agent.agent_id] = is_correct
-            
+
             self.logger.log(
                 'answer',
                 {'answer': answer_str, 'is_correct': is_correct},
                 agent_id=agent.agent_id,
             )
 
+            if agent.knows_token and not is_correct:
+                self.logger.log(
+                    'informed_agent_wrong',
+                    {'expected_token': self.token, 'actual_answer': answer_str},
+                    agent_id=agent.agent_id,
+                )
 
         return RoundResult(
             round_num=self.game_state.round,
@@ -174,11 +180,10 @@ class GameEngine:
             },
         )
 
-        round_summary = self.prompts.build_round_summary(round_result)
-
         for agent in self.game_state.agents:
+            round_summary = self.prompts.build_round_summary(agent, round_result)
             agent.update_context('user', round_summary)
-                                 
+
             self.logger.log(
                 'summary_to_context',
                 {'phase': 'round_summary', 'content': round_summary},
@@ -211,9 +216,6 @@ class GameEngine:
             )
 
             prompt_text_transfer_token = self.prompts.build_transfer_token_prompt(t.from_id)
-            
-            #agent = next((agent for agent in self.game_state.agents if agent.agent_id == t.to_id), None)
-            #agent.update_context('user', prompt_text_transfer_token)
             
             receiver = self.game_state.get_agent(t.to_id)
             receiver.update_context('user', prompt_text_transfer_token)

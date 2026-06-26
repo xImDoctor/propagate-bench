@@ -1,10 +1,13 @@
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import TypeVar
 
 from pydantic import BaseModel
 
 from ..states import ChatMessage
+
+T = TypeVar('T', bound=BaseModel)
 
 
 class LLMClient(ABC):
@@ -14,13 +17,14 @@ class LLMClient(ABC):
         self.token_log_path = Path(token_log_path)
 
     @abstractmethod
-    def structured_call(
-        self,
-        messages: list[ChatMessage],
-        schema: type[BaseModel],
-    ) -> BaseModel:
-        """Sends messages, returns parsed+validated instance of `schema`.
-        Raises on persistent parse/validation failure after retries"""
+    def structured_call(self, messages: list[ChatMessage], schema: type[T]) -> T:
+        """Sends messages, returns parsed+validated instance of schema.
+
+        Raises ValidationError/JSONDecodeError on parse failure, other
+        exceptions on transport/server errors. 
+        
+        No internal retry, it is handled by game.llm_runner.call_with_retry.
+        """
 
     # Writes token usage to log (doesn't calculate usage payment)
     def _update_token_log(self, prompt_tokens: int, completion_tokens: int) -> None:

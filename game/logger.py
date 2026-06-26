@@ -25,10 +25,13 @@ EventType = Literal[
     'score_update',
     'share_decision',
     'token_received',
+    'informed_agent_wrong',
     'round_summary',
     'summary_to_context',
     'game_over',
     'error',
+    'format_warning',
+    'format_limit_exhausted',
 ]
 
 

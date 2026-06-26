@@ -8,6 +8,8 @@ from .clients import LLMClient
 from .states import GameState, RoundResult
 from .prompt_builder import PromptBuilder, ShareResponse
 
+from .llm_runner import call_with_retry
+
 from .logger import EventLogger
 
 
@@ -60,33 +62,16 @@ class RandomChoiceMatcher:
         for agent in game_state.knowing_agents():
             
             prompt_text = prompts.build_share_prompt(agent, round_result, unknowing_ids)
-            
-            agent.update_context('user', prompt_text)
-            logger.log(
-                'llm_request',
-                {'phase': 'share', 'message_appended': {'role': 'user', 'content': prompt_text}},
-                agent_id=agent.agent_id
+
+            # prompt logging is inside of method
+            response = call_with_retry(
+                agent, prompt_text, ShareResponse,
+                llm, logger, 'share', config.max_retries,
+                extra_request_payload={'available': unknowing_ids},
             )
 
-            try:
-                response = llm.structured_call(agent.context, ShareResponse)
-                assert isinstance(response, ShareResponse) # check schema
-            
-            except Exception as e:
-                logger.log(
-                    'error',
-                    {'where': 'share_phase', 'exc_type': type(e).__name__, 'message': str(e)},
-                    agent_id=agent.agent_id,
-                )
-                # silent fallback without game breaking
-                response = ShareResponse(share=False, target=None, reasoning='error')
-
-            agent.update_context('assistant', response.model_dump_json())
-            logger.log(
-                'llm_response',
-                {"phase": "share", "parsed": response.model_dump()},
-                agent_id=agent.agent_id,
-            )
+            if response is None:
+                response = ShareResponse(share=False, target=None, reasoning='format_limit_exhausted')
             
             decisions[agent.agent_id] = response
             logger.log(
@@ -166,32 +151,19 @@ class FirstComeMatcher:
                         agent, round_result, available_unknowings, previous_target.get(teacher_id)
                     )
 
-                agent.update_context('user', prompt_text)
+                response = call_with_retry(
+                    agent, prompt_text, ShareResponse,
+                    llm, logger, phase, config.max_retries,
+                    extra_request_payload={'available': available_unknowings},
+                )
+                if response is None:
+                    response = ShareResponse(share=False, target=None, reasoning='format_limit_exhausted')
+
                 logger.log(
-                    'llm_request',
-                    {'phase': phase, 'available': available_unknowings,
-                    'message_appended': {'role': 'user', 'content': prompt_text}},
+                    'share_decision',
+                    {**response.model_dump(), 'phase': phase},
                     agent_id=teacher_id,
                 )
-
-                try:
-                    response = llm.structured_call(agent.context, ShareResponse)
-                    assert isinstance(response, ShareResponse) # check schema
-
-                except Exception as e:
-                    logger.log(
-                        'error',
-                        {'where': 'share_phase', 'exc_type': type(e).__name__, 'message': str(e)},
-                        agent_id=teacher_id,
-                    )
-                    # silent fallback without game breaking
-                    response = ShareResponse(share=False, target=None, reasoning='error')
-
-                agent.update_context('assistant', response.model_dump_json())
-                logger.log('llm_response', {'phase': phase, 'parsed': response.model_dump()},
-                            agent_id=teacher_id)
-                logger.log('share_decision', {**response.model_dump(), 'phase': phase},
-                           agent_id=teacher_id)
 
                 decisions[teacher_id] = response
 
