@@ -135,7 +135,7 @@ class FakeLLMPromptBuilder(PromptBuilder):
         )
 
         return (
-            f"{taken_note}"
+            f"{taken_note} "
             f"Your score: {agent.score:.2f}. "
             f"Still-unknowing agents available to teach: {targets}. "
             f"Cost to teach: {self.config.share_cost}. "
