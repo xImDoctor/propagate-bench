@@ -44,7 +44,7 @@ class _AlwaysFailingClient(LLMClient):
 
 def test_full_fake_run_terminates_with_max_rounds(tmp_path, make_config):
     config = make_config(n_agents=5, m_informed=2, max_rounds=2, share_cost=1.0)
-    llm = FakeLLMClient(strategy=FakeStrategy.ALWAYS_SHARE, rng=random.Random(42))
+    llm = FakeLLMClient(strategy=FakeStrategy.NEVER_SHARE, rng=random.Random(42))
     log_path = tmp_path / 'run.jsonl'
 
     with EventLogger(log_path) as logger:
@@ -84,3 +84,45 @@ def test_format_limit_exhausted_stops_game_cleanly(tmp_path, make_config):
     events = [r['event'] for r in _read_events(log_path)]
     assert 'format_limit_exhausted' in events
     assert events.count('round_start') == 1     # never started round 2
+
+
+def test_anonymous_matcher_choice_does_not_affect_result(tmp_path, make_config):
+    """Check if anonymous results are the same in every config.matcher."""
+    log_path = tmp_path / 'run.jsonl'
+
+    cfg_rc = make_config(n_agents=4, m_informed=2, max_rounds=2, matcher='random_choice')
+    cfg_fc = make_config(n_agents=4, m_informed=2, max_rounds=2, matcher='first_come')
+
+    def _run(cfg):
+        with EventLogger(tmp_path / f'r_{cfg.matcher}.jsonl') as lg:
+            llm = FakeLLMClient(strategy=FakeStrategy.ALWAYS_SHARE, rng=random.Random(42))
+            eng = GameEngine(config=cfg, llm=llm, logger=lg)
+            eng.run()
+            return {a.agent_id: a.knows_token for a in eng.game_state.agents}
+
+    assert _run(cfg_rc) == _run(cfg_fc)
+
+
+def test_anonymous_share_prompt_has_no_target_list(tmp_path, make_config):
+    """Check if anon-mode has no name list"""
+    cfg = make_config(n_agents=4, m_informed=2, max_rounds=1)
+    log_path = tmp_path / 'run.jsonl'
+
+    with EventLogger(log_path) as lg:
+        llm = FakeLLMClient(strategy=FakeStrategy.ALWAYS_SHARE, rng=random.Random(42))
+        eng = GameEngine(config=cfg, llm=llm, logger=lg)
+        eng.run()
+
+    events = _read_events(log_path)
+    share_requests = [
+        r for r in events
+        if r['event'] == 'llm_request' and r['payload'].get('phase') == 'share'
+    ]
+
+    assert share_requests, "no share llm_request found"
+    for r in share_requests:
+        # available must be empty or none
+        assert not r['payload'].get('available')
+        # no agent_ids in the prompt text
+        text = r['payload']['message_appended']['content']
+        assert 'agent_0' not in text and 'agent_1' not in text

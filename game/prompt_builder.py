@@ -25,7 +25,7 @@ class PromptBuilder(ABC):
         self.token = token
 
     @abstractmethod
-    def build_system_prompt(self, agent: AgentState, all_agent_ids: list[str]) -> str: ...
+    def build_system_prompt(self, agent: AgentState, all_agent_names: list[str]) -> str: ...
 
     @abstractmethod
     def build_answer_prompt(self, agent: AgentState, round_num: int) -> str: ...
@@ -47,17 +47,18 @@ class PromptBuilder(ABC):
     ) -> str: ...
 
     @abstractmethod
-    def build_round_summary(self, agent: AgentState, round_result: RoundResult) -> str: ...
+    def build_round_summary(self, agent: AgentState, round_result: RoundResult, id_to_display: dict[str, str]) -> str: ...
 
     @abstractmethod
     def build_transfer_token_prompt(self, agent_from_id: str) -> str: ...
+
 
 class FakeLLMPromptBuilder(PromptBuilder):
     """Stub class for FakeLLM, not a full prompt builder"""
 
     template_version = 'stub_v0'
 
-    def build_system_prompt(self, agent: AgentState, all_agent_ids: list[str]) -> str:
+    def build_system_prompt(self, agent: AgentState, all_agent_names: list[str]) -> str:
 
         token_line = (
             f"[TOKEN]{self.token}[/TOKEN]"
@@ -65,8 +66,17 @@ class FakeLLMPromptBuilder(PromptBuilder):
             else 'You do not know the token'
         )
 
+        if self.config.is_anonymous:
+            you = f"You are one of {self.config.n_agents} agents."
+        else:
+            you = (
+                f"You are {agent.display_name}. "
+                f"There are {self.config.n_agents} agents total. " 
+                f"Other agents: {', '.join(n for n in all_agent_names if n != agent.display_name)}."
+            )
+
         return (
-            f"You are {agent.agent_id}. There are {self.config.n_agents} agents total. "
+            f"{you} "
             f"The game continues for an unknown number of rounds. "
             f"Each round: answer 'what is the token', everyone gets correct_count/N points. "
             f"Knowing agents may pay {self.config.share_cost} to teach an unknowing agent. "
@@ -86,8 +96,18 @@ class FakeLLMPromptBuilder(PromptBuilder):
             round_result: RoundResult,
             unknowing_agents: list[str],
     ) -> str:
-        targets = ', '.join(unknowing_agents)
+        
+        if self.config.is_anonymous:
+            return (
+                f"Round {round_result.round_num} results: "
+                f"{round_result.correct_count}/{self.config.n_agents} answered correctly. "
+                f"Your score: {agent.score:.2f}. "
+                f"Do you want to teach the token to an unknowing agent? "
+                f"Cost to teach: {self.config.share_cost}. "
+                f"Respond as {{\"share\": bool, \"target\": \"agent_id\"|null, \"reasoning\": \"...\"}}."
+            )
 
+        targets = ', '.join(unknowing_agents)
         return (
             f"Round {round_result.round_num} results: "
             f"{round_result.correct_count}/{self.config.n_agents} answered correctly. "
@@ -104,6 +124,10 @@ class FakeLLMPromptBuilder(PromptBuilder):
             previous_target: str | None
     ) -> str:
         
+        # this prompt can not be used if anon mode
+        # coz agent doesn't choose another certain agent
+        assert not self.config.is_anonymous
+        
         targets = ', '.join(available_unknowing)
         taken_note = (
             f"{previous_target} is already being taught by another agent."
@@ -119,21 +143,37 @@ class FakeLLMPromptBuilder(PromptBuilder):
             f"Respond as {{\"share\": bool, \"target\": \"agent_id\"|null, \"reasoning\": \"...\"}}."
         )
     
-    def build_transfer_token_prompt(self, agent_from_id: str) -> str:
+    def build_transfer_token_prompt(self, agent_from_display_name):
+        sender_line = (
+            "An agent passed you the token"
+            if self.config.is_anonymous
+            else f"Agent {agent_from_display_name} passed you the token"
+        )
+
         return (
-            f"Agent {agent_from_id} passed you message: [TOKEN]{self.token}[/TOKEN] "
-            f"Now you know the token. Use it. "
+            f"{sender_line}: [TOKEN]{self.token}[/TOKEN] "
+            f"Now you know the token. "
             f"Respond strictly as JSON matching the requested schema."
         )
-    def build_round_summary(self, agent: AgentState, round_result: RoundResult) -> str:
+
+    def build_round_summary(self, agent: AgentState, round_result: RoundResult, id_to_display: dict[str, str]) -> str:
         you_line = (
             "You answered correctly."
             if round_result.correct_answers.get(agent.agent_id)
             else "You answered incorrectly."
         )
 
-        correct_names = [aid for aid, ok in round_result.correct_answers.items() if ok]
-        wrong_names = [aid for aid, ok in round_result.correct_answers.items() if not ok]
+        if self.config.is_anonymous:
+            return (
+                f"Round {round_result.round_num}: "
+                f"{round_result.correct_count}/{self.config.n_agents} answered correctly. "
+                f"{you_line} "
+                f"Your updated score will be shown in the next prompt."
+            )
+
+        # show names through id_to_display map
+        correct_names = [id_to_display[aid] for aid, ok in round_result.correct_answers.items() if ok]
+        wrong_names = [id_to_display[aid] for aid, ok in round_result.correct_answers.items() if not ok]
 
         correct_str = ', '.join(correct_names) if correct_names else 'nobody'
         wrong_str = ', '.join(wrong_names) if wrong_names else 'nobody'
@@ -153,9 +193,9 @@ class PromptBuilderV1Baseline(PromptBuilder):
 
     template_version = 'v1_baseline'
 
-    def build_system_prompt(self, agent: AgentState, all_agent_ids: list[str]) -> str:
+    def build_system_prompt(self, agent: AgentState, all_agent_names: list[str]) -> str:
         return FakeLLMPromptBuilder(self.config, self.token).build_system_prompt(
-            agent, all_agent_ids
+            agent, all_agent_names
         )
     
     def build_answer_prompt(self, agent: AgentState, round_num: int) -> str:
@@ -184,8 +224,8 @@ class PromptBuilderV1Baseline(PromptBuilder):
             agent, round_result, available_unknowing, previous_target
         )
     
-    def build_round_summary(self, agent: AgentState, round_result: RoundResult) -> str:
-        return FakeLLMPromptBuilder(self.config, self.token).build_round_summary(agent, round_result)
+    def build_round_summary(self, agent: AgentState, round_result: RoundResult, id_to_display: dict[str, str]) -> str:
+        return FakeLLMPromptBuilder(self.config, self.token).build_round_summary(agent, round_result, id_to_display)
 
     def build_transfer_token_prompt(self, agent_from_id: str) -> str:
         return FakeLLMPromptBuilder(self.config, self.token).build_transfer_token_prompt(agent_from_id)

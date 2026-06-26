@@ -1,6 +1,8 @@
+from pathlib import Path
+import random
+
 from dataclasses import dataclass, field
 from typing import Literal, TypedDict
-import random
 
 import game.config
 from .config import GameConfig
@@ -21,6 +23,7 @@ class AgentState:
     knows_token: bool
     score: float = 0.0
     context: list[ChatMessage] = field(default_factory=list)
+    display_name: str = ''
 
     def update_context(self, role: Literal['system', 'user', 'assistant'], content: str) -> None:
         self.context.append({'role': role, 'content': content})
@@ -43,6 +46,30 @@ class RoundResult:
     correct_count: int
 
 
+def _resolve_display_names(config: GameConfig, agent_ids: list[str], rng: random.Random) -> list[str]:
+    """Helper-function for agent names extracting from file"""
+
+    if config.display_names_file is None:
+        return list(agent_ids)
+    
+    # read all names from file to list
+    names = [
+        line.strip()
+        for line in Path(config.display_names_file).read_text(encoding='utf-8').splitlines()
+        if line.strip()
+    ]
+
+    if len(names) < config.n_agents:
+        raise ValueError(
+            f"display_names_file has {len(names)}, you need at least {config.n_agents}."
+        )
+    
+    if config.display_names_random:
+        return rng.sample(names, config.n_agents)
+    
+    return names[:config.n_agents] # if not random, return first n names
+
+
 @dataclass
 class GameState:
     round: int
@@ -52,11 +79,18 @@ class GameState:
     @classmethod
     def initialize(cls, config: GameConfig, rng: random.Random) -> "GameState":
     
-        names = config.agent_names or [f"agent_{i}" for i in range(config.n_agents)]
+        agent_ids = [f"agent_{i}" for i in range(config.n_agents)]
         informed_ids = set(rng.sample(range(config.n_agents), config.m_informed))
         
+        display_names = _resolve_display_names(config, agent_ids, rng)
+
         agents = [
-            AgentState(agent_id = names[i], knows_token = (i in informed_ids), score=config.starting_capital)
+            AgentState(
+                agent_id = agent_ids[i],
+                knows_token = (i in informed_ids),
+                score=config.starting_capital,
+                display_name=display_names[i],
+            )
             for i in range(config.n_agents)
         ]
 

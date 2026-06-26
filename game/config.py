@@ -25,7 +25,9 @@ class GameConfig(BaseModel):
     seed: int = 42
     max_rounds: int = 1
 
-    agent_names: list[str] | None = None
+    # names shown to agents
+    display_names_file: Path | None = None  # validation when readed in states.py
+    display_names_random: bool = False      # true - works with config seed
 
     # LLM
     model: str
@@ -38,7 +40,8 @@ class GameConfig(BaseModel):
     max_tokens: int = 4112  # max token count for API calls
 
     # prompts and matching
-    template_version: str = 'v1_baseline'
+    template_version: str = 'v1_baseline' # prompt class being used for prompt_builder
+    
     # random choice matcher resolves conflicts of 2 knowings -> 1 unknowing through rng.choice
     # first come matcher does it selecting just first of teacher agents
     matcher: Literal['random_choice', 'first_come'] = 'first_come'
@@ -47,6 +50,11 @@ class GameConfig(BaseModel):
     initiation_mode: Literal['teacher_only', 'student_only', 'both'] = 'teacher_only'
     payment_mode: Literal['teacher_pays', 'student_pays', 'split'] = 'teacher_pays'
     token_transfer_mode: Literal['direct', 'dialog'] = 'direct'
+
+    @property
+    def is_anonymous(self) -> bool:
+        return self.display_names_file is None
+
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> 'GameConfig':
@@ -74,11 +82,6 @@ class GameConfig(BaseModel):
         if self.api_type == 'together' and self.max_tokens <= 0:
             raise ValueError('max_tokens must be >0 to run with Together API')
         
-        if self.agent_names is not None:
-            if len(self.agent_names) != self.n_agents:
-                raise ValueError('agent_names length must be equal no agent number')
-            if len(set(self.agent_names)) != len(self.agent_names):
-                raise ValueError('agent_names must be unique')
 
         # stubs for modes that not implemented yet through IMPLEMENTED_MODES
         for field, allowed in IMPLEMENTED_MODES.items():

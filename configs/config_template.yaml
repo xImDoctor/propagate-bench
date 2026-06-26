@@ -6,6 +6,10 @@ starting_capital: 0.0
 max_rounds: 2
 seed: 42
 
+# displayable (for agents) names
+#display_names_file:
+#display_names_random: false
+
 # LLM and sampling
 # model, api_type: fake - for pre-coded run
 model: llama3.2:3b
