@@ -83,6 +83,19 @@ matcher: first_come
 Use `model: fake`, `api_type: fake` to init pre-coded run without LLM models.
 Uses `always_share` strategy as default. Use `--fake-strategy` as CLI argument to swap.
 
+## Other scripts
+
+```bash
+# dump all prompt templates of a builder to markdown (stubs for token/ids/scores)
+python scripts/dump_prompts.py --template-version v1_baseline
+
+# single-call sanity check against a Together model (needs TOGETHER_API_KEY)
+python scripts/probe_together.py openai/gpt-oss-20b
+
+# ask one agent "how many rounds do you expect?" - JSONL out, supports seed sweeps
+python scripts/probe_rounds.py configs/config_template.yaml --seeds-file probes/seeds.txt
+```
+
 ## Tests
 
 ```bash
