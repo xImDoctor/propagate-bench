@@ -136,7 +136,14 @@ def dump_prompts(config: GameConfig, output_path: Path) -> None:
             f.write(f'Names from: `{config.display_names_file}`\n')
         f.write('\n')
         for title, text in sections:
-            f.write(f'## {title}\n\n```\n{text}\n```\n\n')
+            f.write(f'## {_md_section_title(title)}\n\n```\n{text}\n```\n\n')
+
+
+def _md_section_title(title: str) -> str:
+    # wrap first word (method name with underscores) in backticks
+    # so md does not interpret '_' as emphasis
+    head, _, tail = title.partition(' ')
+    return f'`{head}` {tail}'.rstrip()
 
 
 def main():
