@@ -2,7 +2,7 @@
 logs/
 probes/
 
-token_usage.txt
+*token_usage.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
