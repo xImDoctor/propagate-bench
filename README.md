@@ -12,7 +12,8 @@ source venv/bin/activate    # Linux
 pip install -r requirements.txt
 ```
 
-For ollama-run local ollama server must be started.
+For `ollama` runs - local ollama server must be started.
+For `together` runs - set `TOGETHER_API_KEY` in `.env` at repo root.
 
 ## Run
 
@@ -46,6 +47,7 @@ Console inline args overwrite values from YAML-config. Log traces to `logs/`.
 | `--api-type` | str | `fake` / `ollama` / `together` |
 | `--temperature` | float | LLM sampling |
 | `--top-p` | float | LLM sampling |
+| `--request-timeout` | float | seconds per LLM call (default `60`, raise for slow models) |
 | `--template-version` | str | key in `PROMPT_BUILDER_REGISTRY` (`v1_baseline` now) |
 | `--matcher` | str | `random_choice` / `first_come` |
 | `--fake-strategy` | str | `FakeLLMClient` behavior in the share phase: `always_share` / `never_share` / `random_share` |
@@ -89,4 +91,4 @@ python -m pytest
 
 ## Cost accounting (after runs)
 
-Token accounting impelemnted to `LLMClient`, it saves `token_usage.txt` to root folder but does not count usage cost.
+Token accounting implemented in `LLMClient`, saves `token_usage.txt` to root folder but does not count usage cost.
