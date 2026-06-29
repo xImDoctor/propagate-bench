@@ -1,0 +1,15 @@
+# Grid sweep config for scripts/probe_share.py.
+# Cartesian product over n_agents x (m_informed or m_ratio) x share_cost x seeds.
+
+n_agents: [4, 8, 16]
+
+# Pick m_informed (explicit list) or m_ratio (m = round(n * ratio)).
+m_informed: [2]
+# m_ratio: 0.5
+
+share_cost: [0.01, 0.1, 1.0]
+
+seeds: [42, 43, 44, 45, 46]
+
+model: qwen2.5:3b
+api_type: ollama
