@@ -32,6 +32,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from typing import Literal
 import yaml
 from dotenv import load_dotenv
 
@@ -69,7 +70,7 @@ def build_llm(config: GameConfig) -> LLMClient:
 
 
 def stub_config(n_agents: int, m_informed: int, share_cost: float, seed: int,
-                model: str, api_type: str) -> GameConfig:
+                model: str, api_type: Literal['ollama', 'together', 'fake']) -> GameConfig:
     
     # display_names_file is left None, anon mode is hardcoded for this script
     return GameConfig(
