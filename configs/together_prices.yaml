@@ -1,0 +1,38 @@
+# Together AI pricing per 1K tokens. Update manually when prices change.
+# Keys must match the LLMClient log keys: "<api_type>:<model>".
+
+together:meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo:
+  input: 0.00018
+  output: 0.00018
+
+together:meta-llama/Llama-3.3-70B-Instruct-Turbo:
+  input: 0.00088
+  output: 0.00088
+
+together:nvidia/Llama-3.1-Nemotron-70B-Instruct-HF:
+  input: 0.00088
+  output: 0.00088
+
+together:meta-llama/Llama-4-Scout-17B-16E-Instruct:
+  input: 0.0018
+  output: 0.0059
+
+together:deepseek-ai/DeepSeek-R1-Distill-Llama-70B:
+  input: 0.002
+  output: 0.002
+
+together:deepseek-ai/DeepSeek-V3:
+  input: 0.0125
+  output: 0.0125
+
+together:openai/gpt-oss-20b:
+  input: 0.00005
+  output: 0.0002
+
+together:openai/gpt-oss-120b:
+  input: 0.00015
+  output: 0.0006
+
+together:Qwen/Qwen3-235B-A22B-Thinking-2507:
+  input: 0.00065
+  output: 0.003
