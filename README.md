@@ -13,6 +13,7 @@ pip install -r requirements.txt
 ```
 
 For `ollama` runs - local ollama server must be started.
+
 For `together` runs - set `TOGETHER_API_KEY` in `.env` at repo root.
 
 ## Run
@@ -94,6 +95,9 @@ python scripts/probe_together.py openai/gpt-oss-20b
 
 # ask one agent "how many rounds do you expect?" - JSONL out, supports seed sweeps
 python scripts/probe_rounds.py configs/config_template.yaml --seeds-file probes/seeds.txt
+
+# estimate API spend from token_usage.txt against the prices table
+python scripts/calc_costs.py
 ```
 
 ## Tests
@@ -104,4 +108,8 @@ python -m pytest
 
 ## Cost accounting (after runs)
 
-Token accounting implemented in `LLMClient`, saves `token_usage.txt` to root folder but does not count usage cost.
+`LLMClient` writes per-model token counts into `token_usage.txt` at repo root.
+
+Run `scripts/calc_costs.py` to estimate spend: it reads the log and multiplies counts by per-1K prices from `configs/together_prices.yaml`. Models without a matching price entry (e.g. `fake:*`, `ollama:*`) are skipped with a warning.
+
+Update `configs/together_prices.yaml` manually when Together changes prices.
