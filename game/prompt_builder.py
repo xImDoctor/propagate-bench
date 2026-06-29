@@ -189,30 +189,86 @@ class FakeLLMPromptBuilder(PromptBuilder):
 
 
 class PromptBuilderV1Baseline(PromptBuilder):
-    """TODO: Real prompt builder class. Now it's copy of FakeLLM ver"""
+    """V1 baseline prompt builder.
+
+    Implements now anonymous mode with informed/uninformed roles,
+    no displayable agent names, teacher pays a fee on share.
+
+    Named mode in current implementation is in the FakeLLM stub for now.
+    If not anon mode (there are displayable names), current prompt builder
+    uses FakeLLm text.
+    """
 
     template_version = 'v1_baseline'
 
     def build_system_prompt(self, agent: AgentState, all_agent_names: list[str]) -> str:
-        return FakeLLMPromptBuilder(self.config, self.token).build_system_prompt(
-            agent, all_agent_names
+        if not self.config.is_anonymous:
+            return FakeLLMPromptBuilder(self.config, self.token).build_system_prompt(
+                agent, all_agent_names
+            )
+
+        if agent.knows_token:
+            you_line = (
+                f"You are an informed player, the word is [TOKEN]{self.token}[/TOKEN]. "
+                f"There are {self.config.n_agents} players in the game, "
+                f"{self.config.m_informed} of which are informed, including you."
+            )
+        else:
+            you_line = (
+                f"You are an uninformed player, you don't know the hidden word. "
+                f"There are {self.config.n_agents} players in the game, "
+                f"{self.config.m_informed} of which are informed."
+            )
+
+        return (
+            "You are playing a multi-round game with hidden information - a specific word (the word). "
+            "Some players know it, some don't. At the beginning of each round every player is asked "
+            "to submit a guess for the word. Each player receives points equal to the total number of "
+            "correct answers submitted by all players that turn. For example, if there are 10 players "
+            "and 5 answered right, each player scores 5 points. On the second stage of each round a "
+            "possibility to share the word appears.\n"
+            "An informed player can send the word to a random uninformed one so next time this player "
+            f"may give a correct answer too. However the sender has to pay a fee = {self.config.share_cost}, "
+            "which is subtracted from the sender's personal cumulative score. If more players initiate "
+            "transfer of the word than the number of uninformed players then only a randomly selected "
+            "group of senders equal to a number of recipients pays.\n"
+            "Important: the word stays unchanged during the whole game.\n"
+            "Your absolute goal is to maximize your score at the end of the game, but the number of "
+            "turns is unknown. The game may continue after every player learns the word or it may end "
+            "long before this happens. The population of agents may change slightly with time too, for "
+            "some players the game may end sooner, some new uninformed players may join later.\n"
+            f"{you_line}"
         )
-    
+
     def build_answer_prompt(self, agent: AgentState, round_num: int) -> str:
-        return FakeLLMPromptBuilder(self.config, self.token).build_answer_prompt(
-            agent, round_num
-        )
-    
+        if not self.config.is_anonymous:
+            return FakeLLMPromptBuilder(self.config, self.token).build_answer_prompt(agent, round_num)
+
+        intro = f"Round {round_num}." if round_num == 1 else f"Round {round_num} starts."
+        return f'{intro}\nTell the word, answer as JSON {{"answer": "..."}}:'
+
     def build_share_prompt(
-            self, 
+            self,
             agent: AgentState,
             round_result: RoundResult,
             unknowing_agents: list[str],
     ) -> str:
-        return FakeLLMPromptBuilder(self.config, self.token).build_share_prompt(
-            agent, round_result, unknowing_agents
+        if not self.config.is_anonymous:
+            return FakeLLMPromptBuilder(self.config, self.token).build_share_prompt(
+                agent, round_result, unknowing_agents
+            )
+
+        return (
+            f"{round_result.correct_count} out of {self.config.n_agents} players gave correct answers. "
+            f"Everybody scores {round_result.correct_count} points. "
+            f"Your total score is: {agent.score:.2f}.\n"
+            "The second stage. Now you as an informed player have a possibility to share the word with "
+            f"a random uninformed player by paying a fee = {self.config.share_cost}. If more players "
+            "initiate transfer of the word than the number of uninformed players then only a randomly "
+            "selected group of senders equal to a number of recipients pays. "
+            'Do you want to share the word? Answer as JSON {"share": true|false, "reasoning": "..."}'
         )
-    
+
     def build_retry_share_prompt(
             self,
             agent: AgentState,
@@ -220,15 +276,36 @@ class PromptBuilderV1Baseline(PromptBuilder):
             available_unknowing: list[str],
             previous_target: str | None
     ) -> str:
+        # retry is only used in named mode and anon matcher never calls it
         return FakeLLMPromptBuilder(self.config, self.token).build_retry_share_prompt(
             agent, round_result, available_unknowing, previous_target
         )
-    
+
     def build_round_summary(self, agent: AgentState, round_result: RoundResult, id_to_display: dict[str, str]) -> str:
-        return FakeLLMPromptBuilder(self.config, self.token).build_round_summary(agent, round_result, id_to_display)
+        
+        if not self.config.is_anonymous:
+            return FakeLLMPromptBuilder(self.config, self.token).build_round_summary(
+                agent, round_result, id_to_display
+            )
+
+        # informed agents see the score line inside their share prompt
+        # engine skips this call for them so here it only matters for uninformed
+        return (
+            f"{round_result.correct_count} out of {self.config.n_agents} players gave correct answers. "
+            f"Everybody scores {round_result.correct_count} points. "
+            f"Your total score is: {agent.score:.2f}."
+        )
 
     def build_transfer_token_prompt(self, agent_from_id: str) -> str:
-        return FakeLLMPromptBuilder(self.config, self.token).build_transfer_token_prompt(agent_from_id)
+        if not self.config.is_anonymous:
+            return FakeLLMPromptBuilder(self.config, self.token).build_transfer_token_prompt(agent_from_id)
+
+        # word is inlined so the receiver can use it next round
+        return (
+            f"The word [TOKEN]{self.token}[/TOKEN] has been sent to you. "
+            "The number of informed players has increased. End of the round."
+        )
+
 
 PROMPT_BUILDER_REGISTRY: dict[str, type[PromptBuilder]] = {
     'v1_baseline': PromptBuilderV1Baseline,

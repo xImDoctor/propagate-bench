@@ -186,6 +186,11 @@ class GameEngine:
         id_to_display = {agent.agent_id: agent.display_name for agent in self.game_state.agents}
 
         for agent in self.game_state.agents:
+            
+            # in anon mode informed agents see the score line inside their share prompt
+            if self.config.is_anonymous and agent.knows_token:
+                continue
+
             round_summary = self.prompts.build_round_summary(agent, round_result, id_to_display)
             agent.update_context('user', round_summary)
 
