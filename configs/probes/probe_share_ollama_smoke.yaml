@@ -1,0 +1,12 @@
+# Smoke test: 1 (n, k) pair * 2 prices * 5 seeds = 10 calls
+
+n_agents:   [2]
+m_informed: [[1]]
+
+seeds:       [42, 43, 44, 45, 46]
+extra_seeds: [47, 48, 49, 50, 51]
+
+model:     qwen2.5:3b
+api_type:  ollama
+reasoning: false
+request_timeout: 60

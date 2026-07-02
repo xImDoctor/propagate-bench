@@ -19,17 +19,6 @@ def test_initialize_m_informed(make_config):
     assert sum(a.knows_token for a in state.agents) == 2
 
 
-def test_initialize_default_names(make_config):
-    state = _state(make_config, n_agents=3, m_informed=1)
-    assert [a.agent_id for a in state.agents] == ['agent_0', 'agent_1', 'agent_2']
-
-
-def test_initialize_custom_names(make_config):
-    state = _state(make_config, n_agents=3, m_informed=1,
-                   agent_names=['alice', 'bob', 'carol'])
-    assert {a.agent_id for a in state.agents} == {'alice', 'bob', 'carol'}
-
-
 def test_initialize_deterministic(make_config):
     cfg = make_config()
 
@@ -133,3 +122,60 @@ def test_check_stop_not_yet(make_config):
     assert state.check_stop(max_rounds=10) is False
     assert state.game_over is False
 
+
+def test_initialize_anon_display_name_equals_agent_id(make_config):
+    cfg = make_config(n_agents=3, m_informed=1)  # display_names_file=None
+    state = GameState.initialize(cfg, random.Random(42))
+
+    for a in state.agents:
+        assert a.display_name == a.agent_id
+        assert a.agent_id.startswith('agent_')
+
+
+def test_initialize_display_names_from_file_first_n(make_config, tmp_path):
+    names_file = tmp_path / 'names.txt'
+    names_file.write_text("Alice\nBob\nJohn\nStan\n", encoding='utf-8')
+
+    cfg = make_config(n_agents=3, m_informed=1, display_names_file=names_file)
+    state = GameState.initialize(cfg, random.Random(42))
+
+    assert [a.display_name for a in state.agents] == ['Alice', 'Bob', 'John']
+    assert [a.agent_id for a in state.agents] == ['agent_0', 'agent_1', 'agent_2'] # agent_id exists anyway
+
+
+def test_initialize_display_names_too_few_raises(make_config, tmp_path):
+    names_file = tmp_path / 'names.txt'
+    names_file.write_text("Alice\nBob\n", encoding='utf-8')
+
+    cfg = make_config(n_agents=3, m_informed=1, display_names_file=names_file)
+
+    with pytest.raises(ValueError, match='at least 3'):
+        GameState.initialize(cfg, random.Random(42))
+
+
+def test_initialize_display_names_random_deterministic(make_config, tmp_path):
+    names_file = tmp_path / 'names.txt'
+    names_file.write_text("\n".join(["A", "B", "C", "D", "E"]), encoding='utf-8')
+
+    cfg = make_config(n_agents=3, m_informed=1,
+                      display_names_file=names_file, display_names_random=True)
+
+    s1 = GameState.initialize(cfg, random.Random(42))
+    s2 = GameState.initialize(cfg, random.Random(42))
+
+    assert [a.display_name for a in s1.agents] == [a.display_name for a in s2.agents]
+
+
+def test_initialize_display_names_random_differs_from_first_n(make_config, tmp_path):
+    names_file = tmp_path / 'names.txt'
+    names_file.write_text("\n".join([f"name_{i}" for i in range(20)]), encoding='utf-8')
+
+    cfg_first = make_config(n_agents=5, m_informed=1, display_names_file=names_file)
+    cfg_random = make_config(n_agents=5, m_informed=1,
+                             display_names_file=names_file, display_names_random=True)
+
+    first = [a.display_name for a in GameState.initialize(cfg_first, random.Random(42)).agents]
+    rand = [a.display_name for a in GameState.initialize(cfg_random, random.Random(42)).agents]
+
+    assert first == ['name_0', 'name_1', 'name_2', 'name_3', 'name_4']
+    assert rand != first  # different with high probability

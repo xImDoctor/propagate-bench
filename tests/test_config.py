@@ -36,16 +36,6 @@ def test_share_cost_negative(make_config):
         make_config(share_cost=-1.0)
 
 
-def test_agent_names_length_mismatch(make_config):
-    with pytest.raises(ValueError):
-        make_config(n_agents=3, m_informed=1, agent_names=['a', 'b'])
-
-
-def test_agent_names_duplicates(make_config):
-    with pytest.raises(ValueError):
-        make_config(n_agents=3, m_informed=1, agent_names=['a', 'a', 'b'])
-
-
 def test_reserved_payment_mode_not_implemented(make_config):
     with pytest.raises(NotImplementedError):
         make_config(payment_mode='split')

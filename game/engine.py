@@ -51,12 +51,15 @@ class GameEngine:
 
     def _init_agents(self) -> None:
         all_ids = [agent.agent_id for agent in self.game_state.agents]
+        all_names = [agent.display_name for agent in self.game_state.agents]
+
         self.logger.log(
             'game_init',
             {
                 'config': self.config.model_dump(),
                 'token': self.token,
                 'informed_agent_ids': [agent.agent_id for agent in self.game_state.knowing_agents()],
+                'display_names': {agent.agent_id: agent.display_name for agent in self.game_state.agents},
                 'last_git_commit_hash': _git_commit_hash(),
             },
         )
@@ -180,8 +183,15 @@ class GameEngine:
             },
         )
 
+        id_to_display = {agent.agent_id: agent.display_name for agent in self.game_state.agents}
+
         for agent in self.game_state.agents:
-            round_summary = self.prompts.build_round_summary(agent, round_result)
+            
+            # in anon mode informed agents see the score line inside their share prompt
+            if self.config.is_anonymous and agent.knows_token:
+                continue
+
+            round_summary = self.prompts.build_round_summary(agent, round_result, id_to_display)
             agent.update_context('user', round_summary)
 
             self.logger.log(
@@ -215,7 +225,9 @@ class GameEngine:
                 },
             )
 
-            prompt_text_transfer_token = self.prompts.build_transfer_token_prompt(t.from_id)
+            # prompt_text_transfer_token = self.prompts.build_transfer_token_prompt(t.to_id)
+            sender = self.game_state.get_agent(t.from_id)
+            prompt_text_transfer_token = self.prompts.build_transfer_token_prompt(sender.display_name)
             
             receiver = self.game_state.get_agent(t.to_id)
             receiver.update_context('user', prompt_text_transfer_token)

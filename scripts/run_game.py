@@ -62,6 +62,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument('--max-rounds', type=int, default=None)
     p.add_argument('--seed', type=int, default=None)
 
+    p.add_argument('--display-names-file', type=str, default=None)
+    p.add_argument('--display-names-random', action='store_true', default=None)
+
     p.add_argument('--model', type=str, default=None)
     p.add_argument('--api-type', type=str, default=None)
     p.add_argument('--temperature', type=float, default=None)
@@ -112,23 +115,35 @@ def build_config(args: argparse.Namespace) -> GameConfig:
 
 
 def print_summary(engine: GameEngine, log_path: Path) -> None:
+    from rich.console import Console
+    from rich.table import Table
+
+    console = Console()
+    show_display = not engine.config.is_anonymous
 
     table = Table(title='Game final state')
-    table.add_column('agent_id')
+    table.add_column('agent_id', justify='center')
+
+    if show_display:
+        table.add_column('display_name', justify='center')
+
     table.add_column('knows_token', justify='center')
     table.add_column('score', justify='right')
 
     for agent in engine.game_state.agents:
-        table.add_row(
-            agent.agent_id,
+        row = [agent.agent_id]
+        if show_display:
+            row.append(agent.display_name)
+        row.extend([
             'YES' if agent.knows_token else 'NO',
-            f"{agent.score:.2f}",
-        )
+            f'{agent.score:.2f}',
+        ])
+        table.add_row(*row)
 
     console.print(table)
-    console.print(f"Game token was: [bold]{engine.token}[/bold]")
-    console.print(f"Rounds played: [bold]{engine.game_state.round}[/bold]")
-    console.print(f"Log saved to [cyan]{log_path}[/cyan]")
+    console.print(f'Game token was: [bold]{engine.token}[/bold]')
+    console.print(f'Rounds played: [bold]{engine.game_state.round}[/bold]')
+    console.print(f'Log saved to [cyan]{log_path}[/cyan]')
 
 
 def main():
