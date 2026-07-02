@@ -84,3 +84,53 @@ class TogetherLLMClient(LLMClient):
 
         # validation error catches by llm_runner.py
         return schema.model_validate_json(content)
+
+    def structured_call_with_reasoning(
+        self,
+        messages: list[ChatMessage],
+        schema: type[T],
+    ) -> tuple[T, str | None]:
+        """Same as structured_call, but enables Together API reasoning field
+        and returns it alongside the parsed schema. 
+        Returns (parsed, reasoning_text_or_None).
+
+        The `reasoning` request param is a Together extension - passed via
+        `extra_body` to keep the OpenAI SDK as OK. The response `.reasoning`
+        field is not in OpenAI's typed schema so we read it from
+        `msg.model_extra` (pydantic v2 keeps unknown fields there).
+        """
+
+        kwargs = {
+            'model': self.model,
+            'messages': list(messages),
+            'response_format': {
+                'type': 'json_object',
+                'schema': schema.model_json_schema(),
+            },
+            'max_tokens': self.max_tokens,
+            'extra_body': {'reasoning': {'enabled': True}},
+        }
+
+        if self.seed is not None:
+            kwargs['seed'] = self.seed
+        if self.temperature is not None:
+            kwargs['temperature'] = self.temperature
+        if self.top_p is not None:
+            kwargs['top_p'] = self.top_p
+
+        response = self.client.chat.completions.create(**kwargs)
+
+        msg = response.choices[0].message
+        content = msg.content or ''
+        
+        # pydantic v2 stores unknown response fields in model_extra;
+        # fall back to getattr in case the SDK version surfaces it directly
+        extra = getattr(msg, 'model_extra', None) or {}
+        reasoning = extra.get('reasoning') or getattr(msg, 'reasoning', None)
+
+        usage = response.usage
+        pt = getattr(usage, 'prompt_tokens', 0) or 0
+        ct = getattr(usage, 'completion_tokens', 0) or 0
+        self._update_token_log(pt, ct)
+
+        return schema.model_validate_json(content), reasoning

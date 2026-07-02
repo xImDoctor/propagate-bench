@@ -1,0 +1,12 @@
+# Reasoning model: default reasoning effort, extracted via response.choices[0].message.reasoning.
+
+n_agents:   [2, 3, 6, 10]
+m_informed: [[1], [1, 2], [1, 3, 5], [1, 3, 5, 7, 9]]
+
+seeds:       [42, 43, 44, 45, 46]
+extra_seeds: [47, 48, 49, 50, 51]
+
+model:     openai/gpt-oss-20b
+api_type:  together
+reasoning: true
+request_timeout: 240

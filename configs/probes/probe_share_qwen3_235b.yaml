@@ -1,0 +1,12 @@
+# Non-reasoning model: reasoning field is not requested.
+
+n_agents:   [2, 3, 6, 10]
+m_informed: [[1], [1, 2], [1, 3, 5], [1, 3, 5, 7, 9]]
+
+seeds:       [42, 43, 44, 45, 46]
+extra_seeds: [47, 48, 49, 50, 51]
+
+model:     Qwen/Qwen3-235B-A22B-Instruct-2507-FP8
+api_type:  together
+reasoning: false
+request_timeout: 240

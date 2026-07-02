@@ -1,6 +1,7 @@
 # game ignores
 logs/
 probes/
+!configs/probes/
 
 *token_usage.txt
 prompts_*.md

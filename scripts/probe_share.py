@@ -1,52 +1,72 @@
-"""Probe scenario: ask a single informed agent if it wants to share then exit.
+"""Probe scenario: ask a single informed agent if it wants to share, then exit.
 
-Measures share=true probability in round 1 across varying N, M, P.
+Measures share=true probability in round 1 across varying N, K, P.
 There are:
-N - number of agents in the game (n_agents)
-M - number of knowing agents (m_informed)
-P - price of share/fee
+    N - number of agents in the game (n_agents)
+    K - number of informed agents (m_informed)
+    P - price of sharing (share_cost)
 
 The engine is not started - we hand-build the agent context (system, answer,
-fake assistant answer with the token, share question) and make one structured
-LLM call per combination. 
+faked assistant answer with the token, share question) and make one structured
+LLM call per combination. Anonymous mode only.
 
-Implemented for anonymous mode only.
+The prompt is locally patched to drop the reasoning field from the JSON
+schema instruction. Thisa probe uses min ShareBoolResponse to save
+output tokens. For reasoning-capable models, Together's reasoning field
+is extracted separately via TogetherLLMClient.structured_call_with_reasoning.
 
-Single combination:
-    python scripts/probe_share.py --n-agents 4 --m-informed 2 --share-cost 0.01 \\
-        --model qwen2.5:3b --api-type ollama --seed 42
+Grid YAML format:
+    n_agents:   [2, 3, 6, 10]
+    m_informed: [[1], [1, 2], [1, 3, 5], [1, 3, 5, 7, 9]]   # parallel to n_agents
+    share_cost is computed per k = m_informed as unique of [0.1, 1, k/2, k]
+    with k/2 included only when strictly between 1 and k.
+    seeds:      [42, 43, 44, 45, 46]                        # first batch (5)
+    extra_seeds:[47, 48, 49, 50, 51]                        # added if shares mixed
+    model, api_type, reasoning, request_timeout
 
-Grid sweep:
-    python scripts/probe_share.py --grid-file configs/probe_share_grid.yaml
+Early stopping: if all 5 first-batch shares are identical -> stop
+else run the 5 extra seeds.
 
-Grid YAML supports either explicit m_informed array or m_ratio (then m = round(n * ratio)).
-Output is JSONL appended line by line so a Ctrl+C does not lose data.
+Output:
+    probes/probe_share_<sanitized_model>_<YYYY-MM-DD>.jsonl
+    probes/probe_share_<sanitized_model>_<YYYY-MM-DD>.csv
 """
 
 import sys
 import argparse
+import csv
 import json
-import itertools
+import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from typing import Literal
 import yaml
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
 from game.config import GameConfig
 from game.clients import LLMClient, OllamaLLMClient, TogetherLLMClient
-from game.prompt_builder import ShareResponse, create_prompt_builder
+from game.prompt_builder import create_prompt_builder
 from game.states import AgentState, ChatMessage, RoundResult
 
 
 STUB_TOKEN = '1234'
 
+# match the reasoning-field instruction inside the share prompt and drop it
+# leaving only {"share": true|false}
+REASONING_STRIP_RE = re.compile(r',\s*"reasoning"\s*:\s*"\.\.\."')
+
+
+# min schema to validate only true/false field
+class ShareBoolResponse(BaseModel):
+    share: bool
+
 
 def build_llm(config: GameConfig) -> LLMClient:
-    
+
     if config.api_type == 'ollama':
         return OllamaLLMClient(
             model=config.model,
@@ -69,10 +89,11 @@ def build_llm(config: GameConfig) -> LLMClient:
     raise NotImplementedError(f"api_type={config.api_type!r} not supported by probe_share")
 
 
+# request_timeout added for ollama model variations and it literally depends on hardware
 def stub_config(n_agents: int, m_informed: int, share_cost: float, seed: int,
-                model: str, api_type: Literal['ollama', 'together', 'fake']) -> GameConfig:
+                model: str, api_type: Literal['ollama', 'together', 'fake'],
+                request_timeout: float = 60.0) -> GameConfig:
     
-    # display_names_file is left None, anon mode is hardcoded for this script
     return GameConfig(
         n_agents=n_agents,
         m_informed=m_informed,
@@ -82,19 +103,29 @@ def stub_config(n_agents: int, m_informed: int, share_cost: float, seed: int,
         seed=seed,
         model=model,
         api_type=api_type,
+        request_timeout=request_timeout,
         template_version='v1_baseline',
         matcher='first_come',
     )
 
 
-def run_one(config: GameConfig) -> dict:
-    """Single share-probe call. Returns a flat record for JSONL"""
+# drops the reasoning field from JSON instruction in share prompt
+# using REASONING_STRIP_RE const from above
+def patch_share_prompt(text: str) -> str:
+    return REASONING_STRIP_RE.sub('', text)
 
+
+def make_messages(config: GameConfig) -> list[ChatMessage]:
+    """Hand-build the context: system + answer_q + faked assistant + share_q"""
+    
     prompts = create_prompt_builder(config, STUB_TOKEN)
+
+    # each player scores correct_count points, so after round 1
+    # every player has starting_capital + K (informed all answered correctly)
     agent = AgentState(
         agent_id='agent_0',
         knows_token=True,
-        score=config.starting_capital + config.m_informed / config.n_agents,
+        score=config.starting_capital + config.m_informed,
     )
 
     all_ids = [f'agent_{i}' for i in range(config.n_agents)]
@@ -109,14 +140,21 @@ def run_one(config: GameConfig) -> dict:
 
     system_prompt = prompts.build_system_prompt(agent, all_ids)
     answer_prompt = prompts.build_answer_prompt(agent, round_num=1)
-    share_prompt = prompts.build_share_prompt(agent, round_result, unknowing_agents=[])
+    share_prompt = patch_share_prompt(prompts.build_share_prompt(agent, round_result, unknowing_agents=[]))
 
-    messages: list[ChatMessage] = [
+    # all msg context in the dict format
+    return [
         {'role': 'system', 'content': system_prompt},
         {'role': 'user', 'content': answer_prompt},
         {'role': 'assistant', 'content': json.dumps({'answer': STUB_TOKEN})},
         {'role': 'user', 'content': share_prompt},
     ]
+
+
+def run_one(config: GameConfig, use_reasoning: bool) -> dict:
+    """Runs a single share-probe call. Returns a flat record for JSONL"""
+
+    messages = make_messages(config)
 
     record = {
         'ts': datetime.now(timezone.utc).isoformat(),
@@ -133,67 +171,106 @@ def run_one(config: GameConfig) -> dict:
 
     try:
         llm = build_llm(config)
-        response = llm.structured_call(messages, ShareResponse)
-        record['share'] = response.share
-        record['reasoning'] = response.reasoning
+
+        # if together and model is marked as reasoning one
+        if use_reasoning and isinstance(llm, TogetherLLMClient):
+            response, reasoning = llm.structured_call_with_reasoning(messages, ShareBoolResponse)
+            record['share'] = response.share
+            record['reasoning'] = reasoning
+        else:
+            response = llm.structured_call(messages, ShareBoolResponse)
+            record['share'] = response.share
+
     except Exception as e:
         record['error'] = f'{type(e).__name__}: {e}'
 
     return record
 
 
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description='Probe share probability for informed agents in round 1.')
+def share_costs_for_k(k: int) -> list[float]:
+    """
+    Makes price logic. Prices per k per spec:
+    [0.1, 1, k/2, k] with k/2 included only if 1 < k/2 < k.
+    """
+    prices = {0.1, 1.0, float(k)}
+    half = k / 2
 
-    p.add_argument('--grid-file', type=str, default=None,
-                   help='YAML with arrays of n_agents/m_informed/share_cost/seeds for a sweep')
+    if 1.0 < half < float(k):
+        prices.add(half)
 
-    # single-call args (ignored if --grid-file is set)
-    p.add_argument('--n-agents', type=int, default=None)
-    p.add_argument('--m-informed', type=int, default=None)
-    p.add_argument('--share-cost', type=float, default=None)
-    p.add_argument('--seed', type=int, default=42)
-    p.add_argument('--model', type=str, default=None)
-    p.add_argument('--api-type', type=str, default=None)
-
-    p.add_argument('--output', type=str, default=None,
-                   help='Output JSONL path. Default: probes/probe_share_<ts>.jsonl')
-
-    return p.parse_args()
+    return sorted(prices)
 
 
 def expand_grid(grid: dict) -> list[dict]:
-    """Cartesian product of n_agents x m_informed (or m_ratio) x share_cost x seeds."""
+    """Parallel lists n_agents x m_informed_lists, cartesian with prices and seeds"""
+    
     n_list = grid['n_agents']
-    p_list = grid['share_cost']
-    seed_list = grid['seeds']
+    m_lists = grid['m_informed']
+
+    if len(n_list) != len(m_lists):
+        raise ValueError(f'n_agents ({len(n_list)}) and m_informed ({len(m_lists)}) must be parallel')
+
+    first_seeds = grid['seeds']
+    extra_seeds = grid.get('extra_seeds', [])
     model = grid['model']
     api_type = grid['api_type']
+    request_timeout = grid.get('request_timeout', 60.0)
 
-    if 'm_ratio' in grid:
-        ratio = grid['m_ratio']
-        m_by_n = {n: max(1, min(n - 1, round(n * ratio))) for n in n_list}
-        m_iter = lambda n: [m_by_n[n]]
-    else:
-        m_list = grid['m_informed']
-        m_iter = lambda n: m_list
+    configs: list[dict] = []
+    for n, m_options in zip(n_list, m_lists):
+        # allow both [1, 2] and a bare int like 1
+        m_options = m_options if isinstance(m_options, list) else [m_options]
 
-    combos: list[dict] = []
-    for n in n_list:
-        for m in m_iter(n):
-            if not 0 < m < n:
+        for k in m_options:
+
+            if not 0 < k < n:
                 continue
-            for cost, seed in itertools.product(p_list, seed_list):
-                combos.append({
-                    'n_agents': n, 'm_informed': m, 'share_cost': cost,
-                    'seed': seed, 'model': model, 'api_type': api_type,
+
+            for p in share_costs_for_k(k):
+                configs.append({
+                    'n_agents': n, 'm_informed': k, 'share_cost': p,
+                    'model': model, 'api_type': api_type,
+                    'request_timeout': request_timeout,
+                    'first_seeds': list(first_seeds),
+                    'extra_seeds': list(extra_seeds),
                 })
-    return combos
+    
+    return configs
 
 
-def default_output_path() -> str:
-    ts = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H-%M-%S')
-    return f'probes/probe_share_{ts}.jsonl'
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description='Probe share probability for informed agents in round 1.')
+    p.add_argument('--grid-file', type=str, required=True,
+                   help='YAML grid config (see docstring)')
+    p.add_argument('--output-dir', type=str, default='probes',
+                   help='Where to write jsonl and csv (default: probes/)')
+    return p.parse_args()
+
+
+# for model names and such cases
+def sanitize(name: str) -> str:
+    return name.replace('/', '-').replace(':', '-').replace(' ', '_')
+
+
+def default_output_paths(model: str, output_dir: str) -> tuple[Path, Path]:
+    day = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    stem = f'probe_share_{sanitize(model)}_{day}'
+    base = Path(output_dir)
+    return base / f'{stem}.jsonl', base / f'{stem}.csv'
+
+
+def _write_csv(jsonl_path: Path, csv_path: Path) -> None:
+    """Converts the JSONL to a flat CSV when run is ended."""
+    rows = [json.loads(line) for line in jsonl_path.read_text(encoding='utf-8').splitlines() if line.strip()]
+    if not rows:
+        return
+    fields = ['ts', 'model', 'api_type', 'n_agents', 'm_informed', 'share_cost',
+              'seed', 'share', 'reasoning', 'error']
+    with csv_path.open('w', encoding='utf-8', newline='') as f:
+        w = csv.DictWriter(f, fieldnames=fields)
+        w.writeheader()
+        for r in rows:
+            w.writerow({k: r.get(k) for k in fields})
 
 
 def main():
@@ -201,39 +278,59 @@ def main():
     load_dotenv()
     args = parse_args()
 
-    if args.grid_file:
-        grid = yaml.safe_load(Path(args.grid_file).read_text(encoding='utf-8'))
-        combos = expand_grid(grid)
-    
-    else:
-        required = (args.n_agents, args.m_informed, args.share_cost, args.model, args.api_type)
+    grid = yaml.safe_load(Path(args.grid_file).read_text(encoding='utf-8'))
+    configs = expand_grid(grid)
+    use_reasoning = bool(grid.get('reasoning', False))
+    model = grid['model']
 
-        if any(v is None for v in required):
-            raise SystemExit('Single mode needs --n-agents, --m-informed, --share-cost, --model, --api-type')
+    jsonl_path, csv_path = default_output_paths(model, args.output_dir)
+    jsonl_path.parent.mkdir(parents=True, exist_ok=True)
 
-        combos = [{
-            'n_agents': args.n_agents, 'm_informed': args.m_informed,
-            'share_cost': args.share_cost, 'seed': args.seed,
-            'model': args.model, 'api_type': args.api_type,
-        }]
+    total_configs = len(configs)
+    print(f'Configs to probe: {total_configs}; reasoning={use_reasoning}')
+    print(f'Writing to: {jsonl_path}')
 
-    output = Path(args.output or default_output_path())
-    output.parent.mkdir(parents=True, exist_ok=True)
-    total = len(combos)
+    with jsonl_path.open('w', encoding='utf-8') as f:
+        for ci, cfg_pack in enumerate(configs, 1):
+            first_seeds = cfg_pack.pop('first_seeds')
+            extra_seeds = cfg_pack.pop('extra_seeds')
 
-    with open(output, 'w', encoding='utf-8') as f:
-        for i, c in enumerate(combos, 1):
-            config = stub_config(**c)
-            record = run_one(config)
-            f.write(json.dumps(record, ensure_ascii=False) + '\n')
-            f.flush()
-            print(
-                f'[{i}/{total}] n={record["n_agents"]:>3} m={record["m_informed"]:>3} '
-                f'p={record["share_cost"]:<6} seed={record["seed"]:>3} '
-                f'share={record["share"]} err={record["error"]}'
-            )
+            # first batch
+            first_shares: list[bool | None] = []
+            for seed in first_seeds:
+                config = stub_config(**cfg_pack, seed=seed)
+                record = run_one(config, use_reasoning)
+                f.write(json.dumps(record, ensure_ascii=False) + '\n')
+                f.flush()
+                first_shares.append(record['share'])
+                print(f'  [{ci}/{total_configs}] '
+                      f'n={record["n_agents"]:>2} k={record["m_informed"]:>2} '
+                      f'p={record["share_cost"]:<5} seed={seed:>3} '
+                      f'share={record["share"]} err={record["error"]}')
 
-    print(f'\nResults written to {output}')
+            # early stopping: if all first-batch shares are identical (and no errors) than
+            # skip extra seeds
+            # otherwise run the extra batch
+            unique = {s for s in first_shares if s is not None}
+            if len(unique) <= 1:
+                continue
+
+            for seed in extra_seeds:
+                config = stub_config(**cfg_pack, seed=seed)
+                record = run_one(config, use_reasoning)
+                
+                f.write(json.dumps(record, ensure_ascii=False) + '\n')
+                f.flush()
+
+                print(f'  [{ci}/{total_configs} extra] '
+                      f'n={record["n_agents"]:>2} k={record["m_informed"]:>2} '
+                      f'p={record["share_cost"]:<5} seed={seed:>3} '
+                      f'share={record["share"]} err={record["error"]}')
+
+    _write_csv(jsonl_path, csv_path)
+
+    print(f'\nJSONL: {jsonl_path}')
+    print(f'CSV:   {csv_path}')
 
 
 if __name__ == '__main__':
