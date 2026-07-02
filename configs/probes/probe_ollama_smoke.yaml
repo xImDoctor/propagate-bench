@@ -1,10 +1,10 @@
-# Smoke test: 1 (n, k) pair * 2 prices * 5 seeds = 10 calls
+# Smoke test: 1 (n, k) pair * 2 prices * 10 seeds = up to 20 calls with early stopping.
 
 n_agents:   [2]
 m_informed: [[1]]
 
-seeds:       [42, 43, 44, 45, 46]
-extra_seeds: [47, 48, 49, 50, 51]
+seeds:  [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]
+early_stopping: true
 
 model:     qwen2.5:3b
 api_type:  ollama
