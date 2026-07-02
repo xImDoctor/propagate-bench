@@ -20,12 +20,14 @@ Grid YAML format:
     m_informed: [[1], [1, 2], [1, 3, 5], [1, 3, 5, 7, 9]]   # parallel to n_agents
     share_cost is computed per k = m_informed as unique of [0.1, 1, k/2, k]
     with k/2 included only when strictly between 1 and k.
-    seeds:      [42, 43, 44, 45, 46]                        # first batch (5)
-    extra_seeds:[47, 48, 49, 50, 51]                        # added if shares mixed
+    seeds:      [42, 43, ..., 51]                           # full list
+    early_stopping: true|false                              # default true
     model, api_type, reasoning, request_timeout
 
-Early stopping: if all 5 first-batch shares are identical -> stop
-else run the 5 extra seeds.
+Early stopping: when true, the first half of seeds runs as batch 1.
+If all results in this batch 1 are identical the config stops there, otherwise
+the second half of seeds runs as batch 2. When false, all seeds run without
+extra batches or any kind of stopping.
 
 Output:
     probes/probe_share_<sanitized_model>_<YYYY-MM-DD>.jsonl
@@ -210,11 +212,17 @@ def expand_grid(grid: dict) -> list[dict]:
     if len(n_list) != len(m_lists):
         raise ValueError(f'n_agents ({len(n_list)}) and m_informed ({len(m_lists)}) must be parallel')
 
-    first_seeds = grid['seeds']
-    extra_seeds = grid.get('extra_seeds', [])
+    seeds = list(grid['seeds'])
+    early_stopping = bool(grid.get('early_stopping', True))
     model = grid['model']
     api_type = grid['api_type']
     request_timeout = grid.get('request_timeout', 60.0)
+
+    if early_stopping:  # split into 2 batches, stop if everything in first_seeds the same
+        half = len(seeds) // 2
+        first_seeds, extra_seeds = seeds[:half], seeds[half:]
+    else:
+        first_seeds, extra_seeds = seeds, []
 
     configs: list[dict] = []
     for n, m_options in zip(n_list, m_lists):
@@ -234,7 +242,7 @@ def expand_grid(grid: dict) -> list[dict]:
                     'first_seeds': list(first_seeds),
                     'extra_seeds': list(extra_seeds),
                 })
-    
+
     return configs
 
 
