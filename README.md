@@ -94,12 +94,49 @@ python scripts/dump_prompts.py --template-version v1_baseline
 # single-call sanity check against a Together model (needs TOGETHER_API_KEY)
 python scripts/probe_together.py openai/gpt-oss-20b
 
-# ask one agent "how many rounds do you expect?" - JSONL out, supports seed sweeps
+# ask one agent "how many rounds do you expect?" - legacy variant, needs a full game YAML
 python scripts/probe_rounds.py configs/config_template.yaml --seeds-file probes/seeds.txt
 
 # estimate API spend from token_usage.txt against the prices table
 python scripts/calc_costs.py
 ```
+
+## Experimental probes
+
+Grid-based single-call probes for behavioural measurements on informed agents. Both probes share the same grid YAML format (see `configs/probes/`).
+
+```bash
+# will/will-not-share, one call per (N, K, P, seed).
+# For reasoning-capable Together models the reasoning trace is captured too.
+python scripts/probe_share.py --grid-file configs/probes/probe_qwen3_235b_10seeds.yaml
+
+# integer expectation of remaining rounds, one call per (N, K, P, seed).
+# Same grid layout, `early_stopping` is ignored.
+python scripts/probe_expected_rounds.py --grid-file configs/probes/probe_qwen3_235b_10seeds.yaml
+```
+
+Configs in `configs/probes/`:
+
+| File | Purpose |
+|---|---|
+| `probe_ollama_smoke.yaml` | tiny smoke on local Ollama, `early_stopping: true` |
+| `probe_<model>_10seeds.yaml` | 10-seed grid on Together API, `early_stopping: true` |
+| `probe_<model>_100seeds.yaml` | 100-seed grid on Together API, `early_stopping: false` |
+
+Grid schema:
+
+```yaml
+n_agents:   [2, 3, 6, 10]                              # population sizes
+m_informed: [[1], [1, 2], [1, 3, 5], [1, 3, 5, 7, 9]]  # per-N K values
+seeds:      [42, 43, ..., 51]                          # RNG seed pool
+early_stopping: true                                   # split seeds in half; skip 2nd if 1st is uniform
+model:      openai/gpt-oss-20b
+api_type:   together
+reasoning:  true                                       # request reasoning trace on Together
+request_timeout: 240
+```
+
+`share_cost` per K is computed as unique values of `[0.1, 1, K/2, K]` with `K/2` included only if `1 < K/2 < K`. Output goes to `probes/probe_share_<sanitized_model>_<date>.{jsonl,csv}` (probe_share) or `probes/probe_expected_rounds_<sanitized_model>_<date_time>_<N>seeds.{jsonl,csv}` (probe_expected_rounds).
 
 ## Tests
 
