@@ -110,8 +110,9 @@ class GameState:
         return [agent for agent in self.agents if not agent.knows_token]
     
     def distribute_score(self, correct_count: int) -> None:
-        # TODO: talk about formula implementation if is it correct
-        gain = correct_count / len(self.agents)
+        # each player receives points equal to the total
+        # number of correct answers submitted that round.
+        gain = correct_count
 
         for agent in self.agents:
             agent.score += gain

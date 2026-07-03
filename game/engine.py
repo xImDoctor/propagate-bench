@@ -173,7 +173,7 @@ class GameEngine:
         
         round_result.scores_after = {agent.agent_id: agent.score for agent in self.game_state.agents}
         
-        gain = round_result.correct_count / self.config.n_agents
+        gain = round_result.correct_count # +correct_count (+K), not K/N
         self.logger.log(
             'score_update',
             {

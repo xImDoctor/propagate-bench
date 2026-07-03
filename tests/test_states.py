@@ -41,15 +41,15 @@ def test_initialize_custom_starting_capital(make_config):
 def test_distribute_score_equal_share(make_config):
     state = _state(make_config, n_agents=4)
     state.distribute_score(correct_count=2)
-    assert all(a.score == 0.5 for a in state.agents)  # 2 / 4
+    assert all(a.score == 2 for a in state.agents)
 
 
 def test_distribute_score_accumulates(make_config):
     state = _state(make_config, n_agents=2, m_informed=1)
-    state.distribute_score(correct_count=2)  # +1.0 each
-    state.distribute_score(correct_count=1)  # +0.5 each
-    
-    assert all(a.score == 1.5 for a in state.agents)
+    state.distribute_score(correct_count=2)  # +2 each
+    state.distribute_score(correct_count=1)  # +1 each
+
+    assert all(a.score == 3 for a in state.agents)
 
 
 def test_apply_transfer_success(make_config):
