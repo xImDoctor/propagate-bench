@@ -1,4 +1,4 @@
-# agent-knowgame
+# Propagate Bench
 
 A research project (game) for studying **free-riding in knowledge transfer between LLM agents**.
 
