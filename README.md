@@ -95,7 +95,7 @@ For a game where agents have display names and choose the student to whom the to
 - **`random_choice`** – random tie-break; the loser's transfer is dropped.
 - **`first_come`** – the first-declared transfer wins; the loser gets feedback ("that student is already busy") and may pick another student or decline.
 
-In the `first_come` case, the declined knowing agent gets an option to choose another student or not share at all.
+In a lose case, the declined knowing agent gets an option to choose another student or not share at all.
 
 ---
 
