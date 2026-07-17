@@ -218,8 +218,10 @@ def expand_grid(grid: dict) -> list[dict]:
     api_type = grid['api_type']
     request_timeout = grid.get('request_timeout', 60.0)
 
-    # optional explicit price list, applied to every K in this run
-    # if absent, fall back to share_costs_for_k(k) that was used by default
+    # optional explicit price list, two forms accepted:
+    #   share_costs: [0.1, 1, ...]            - flat list, applied to every K in this run
+    #   share_costs: {19: [0.1, 1, 4.5, ...]} - per-K dict; K not listed falls back to share_costs_for_k(k)
+    # if absent, fall back to share_costs_for_k(k) per the default spec.
     share_costs_override = grid.get('share_costs')
 
     if early_stopping:  # split into 2 batches, stop if everything in first_seeds the same
@@ -227,6 +229,18 @@ def expand_grid(grid: dict) -> list[dict]:
         first_seeds, extra_seeds = seeds[:half], seeds[half:]
     else:
         first_seeds, extra_seeds = seeds, []
+
+    def _costs_for(k: int) -> list[float]:
+
+        if isinstance(share_costs_override, list):
+            return list(share_costs_override)
+        
+        if isinstance(share_costs_override, dict):
+            per_k = share_costs_override.get(k) or share_costs_override.get(str(k))
+            if per_k is not None:
+                return list(per_k)
+            
+        return share_costs_for_k(k)
 
     configs: list[dict] = []
     for n, m_options in zip(n_list, m_lists):
@@ -238,8 +252,7 @@ def expand_grid(grid: dict) -> list[dict]:
             if not 0 < k < n:
                 continue
 
-            costs = list(share_costs_override) if share_costs_override else share_costs_for_k(k)
-            for p in costs:
+            for p in _costs_for(k):
                 configs.append({
                     'n_agents': n, 'm_informed': k, 'share_cost': p,
                     'model': model, 'api_type': api_type,
