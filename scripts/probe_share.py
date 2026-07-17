@@ -218,6 +218,10 @@ def expand_grid(grid: dict) -> list[dict]:
     api_type = grid['api_type']
     request_timeout = grid.get('request_timeout', 60.0)
 
+    # optional explicit price list, applied to every K in this run
+    # if absent, fall back to share_costs_for_k(k) that was used by default
+    share_costs_override = grid.get('share_costs')
+
     if early_stopping:  # split into 2 batches, stop if everything in first_seeds the same
         half = len(seeds) // 2
         first_seeds, extra_seeds = seeds[:half], seeds[half:]
@@ -234,7 +238,8 @@ def expand_grid(grid: dict) -> list[dict]:
             if not 0 < k < n:
                 continue
 
-            for p in share_costs_for_k(k):
+            costs = list(share_costs_override) if share_costs_override else share_costs_for_k(k)
+            for p in costs:
                 configs.append({
                     'n_agents': n, 'm_informed': k, 'share_cost': p,
                     'model': model, 'api_type': api_type,
