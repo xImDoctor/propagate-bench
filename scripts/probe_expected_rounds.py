@@ -48,7 +48,7 @@ from game.prompt_builder import create_prompt_builder
 from game.states import AgentState, ChatMessage
 
 
-STUB_TOKEN = '1234'
+STUB_TOKEN = 'color'
 
 USER_QUESTION_BASELINE = (
     'Knowing everything above, what is your expectation concerning the game '

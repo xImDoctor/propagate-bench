@@ -55,7 +55,7 @@ from game.prompt_builder import create_prompt_builder
 from game.states import AgentState, ChatMessage, RoundResult
 
 
-STUB_TOKEN = '1234'
+STUB_TOKEN = 'color'
 
 # match the reasoning-field instruction inside the share prompt and drop it
 # leaving only {"share": true|false}
