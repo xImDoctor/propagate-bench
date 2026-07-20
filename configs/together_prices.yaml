@@ -49,3 +49,12 @@ together:deepseek-ai/DeepSeek-V4-Pro:
 together:Qwen/Qwen3-235B-A22B-Instruct-2507-FP8:
   input: 0.0
   output: 0.0
+
+# up to date 2026-07-17: added as a serverless replacements of Qwen3-235B removed from API
+together:Qwen/Qwen3.5-9B:
+  input: 0.00017
+  output: 0.00025
+
+together:Qwen/Qwen2.5-7B-Instruct-Turbo:
+  input: 0.0003
+  output: 0.0003
