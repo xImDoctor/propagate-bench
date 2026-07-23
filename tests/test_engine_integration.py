@@ -10,7 +10,7 @@ import random
 from pathlib import Path
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from game.clients import FakeLLMClient, FakeStrategy
 from game.clients.base_client import LLMClient
