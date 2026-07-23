@@ -1,7 +1,7 @@
 import random
 
 from game.clients import FakeLLMClient, FakeStrategy
-from game.prompt_builder import AnswerResponse, ShareResponse
+from game.prompt_builder import AnswerResponse, ShareResponse, RequestResponse
 
 
 def _knowing_messages(token: str) -> list[dict]:
@@ -53,3 +53,26 @@ def test_never_share_decides_false():
     ]
     response = llm.structured_call(messages, ShareResponse)
     assert response.share is False
+
+
+def test_always_share_decides_request_true():
+    llm = FakeLLMClient(strategy=FakeStrategy.ALWAYS_SHARE, rng=random.Random(0))
+    messages = [
+        {"role": "system", "content": "You are agent_1. You do not know the word."},
+        {"role": "user", "content": "Do you want to request the word from the game?"},
+    ]
+    response = llm.structured_call(messages, RequestResponse)
+
+    assert isinstance(response, RequestResponse)
+    assert response.request is True
+
+
+def test_never_share_decides_request_false():
+    llm = FakeLLMClient(strategy=FakeStrategy.NEVER_SHARE, rng=random.Random(0))
+    messages = [
+        {"role": "system", "content": "You are agent_1. You do not know the word."},
+        {"role": "user", "content": "Do you want to request the word from the game?"},
+    ]
+    response = llm.structured_call(messages, RequestResponse)
+    
+    assert response.request is False

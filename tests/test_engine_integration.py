@@ -126,3 +126,26 @@ def test_anonymous_share_prompt_has_no_target_list(tmp_path, make_config):
         # no agent_ids in the prompt text
         text = r['payload']['message_appended']['content']
         assert 'agent_0' not in text and 'agent_1' not in text
+
+
+def test_student_initiated_anon_transfer(tmp_path, make_config):
+    """N=2, K=1, ALWAYS_SHARE fake, student_pays.
+    After round 1: student paid share_cost, teacher's score unchanged (only got round reward),
+    both know the token, no forced_teach_notice in teacher's context (student_pays doesn't emit it)"""
+
+    cfg = make_config(
+        n_agents=2, m_informed=1,
+        initiation_mode='student_only', payment_mode='student_pays',
+        share_cost=1.0, max_rounds=1,
+    )
+    log_path = tmp_path / 'run.jsonl'
+    
+    with EventLogger(log_path) as lg:
+        llm = FakeLLMClient(strategy=FakeStrategy.ALWAYS_SHARE, rng=random.Random(42))
+        eng = GameEngine(config=cfg, llm=llm, logger=lg)
+        eng.run()
+
+    state = eng.game_state
+
+    assert all(a.knows_token for a in state.agents)
+    assert sum(a.score for a in state.agents) == pytest.approx(1.0)
