@@ -270,7 +270,7 @@ def sanitize(name: str) -> str:
 
 def default_output_paths(model: str, output_dir: str) -> tuple[Path, Path]:
     day = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-    stem = f'probe_share_{sanitize(model)}_{day}'
+    stem = f'probe_request_{sanitize(model)}_{day}'
     base = Path(output_dir)
     return base / f'{stem}.jsonl', base / f'{stem}.csv'
 
@@ -281,7 +281,7 @@ def _write_csv(jsonl_path: Path, csv_path: Path) -> None:
     if not rows:
         return
     fields = ['ts', 'model', 'api_type', 'n_agents', 'm_informed', 'share_cost',
-              'seed', 'share', 'reasoning', 'error']
+              'seed', 'request', 'reasoning', 'error']
     with csv_path.open('w', encoding='utf-8', newline='') as f:
         w = csv.DictWriter(f, fieldnames=fields)
         w.writeheader()
@@ -318,7 +318,7 @@ def main():
                 record = run_one(config, use_reasoning)
                 f.write(json.dumps(record, ensure_ascii=False) + '\n')
                 f.flush()
-                first_requests.append(record['share'])
+                first_requests.append(record['request'])
                 print(f'  [{ci}/{total_configs}] '
                       f'n={record["n_agents"]:>2} k={record["m_informed"]:>2} '
                       f'p={record["share_cost"]:<5} seed={seed:>3} '
