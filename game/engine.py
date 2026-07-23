@@ -213,6 +213,7 @@ class GameEngine:
             rng=self.rng,
         )
 
+
         for t in transfers:
             self.game_state.apply_transfer(t.from_id, t.to_id, t.cost_teacher, t.cost_student)
             self.logger.log(
@@ -222,12 +223,15 @@ class GameEngine:
                     'to': t.to_id,
                     'cost_teacher': t.cost_teacher,
                     'cost_student': t.cost_student,
+                    'payment_mode': self.config.payment_mode, # 'from' is None for student_pays
                 },
             )
 
-            # prompt_text_transfer_token = self.prompts.build_transfer_token_prompt(t.to_id)
-            sender = self.game_state.get_agent(t.from_id)
-            prompt_text_transfer_token = self.prompts.build_transfer_token_prompt(sender.display_name)
+            if t.from_id is not None:
+                sender = self.game_state.get_agent(t.from_id)
+                prompt_text_transfer_token = self.prompts.build_transfer_token_prompt(sender.display_name)
+            else:   # student_pays ver
+                prompt_text_transfer_token = self.prompts.build_transfer_after_request_prompt()
             
             receiver = self.game_state.get_agent(t.to_id)
             receiver.update_context('user', prompt_text_transfer_token)
@@ -236,6 +240,6 @@ class GameEngine:
                 {
                     'phase': 'token_received', 'content': prompt_text_transfer_token
                 },
-                agent_id=t.to_id,
+                agent_id=receiver.agent_id,
             )
 

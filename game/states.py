@@ -119,21 +119,26 @@ class GameState:
 
     def apply_transfer(
             self,
-            from_id: str,
+            from_id: str | None,
             to_id: str,
             cost_teacher: float,
             cost_student: float = 0.0,
     ) -> None:
         
-        sender = self.get_agent(from_id)
+        # sender = self.get_agent(from_id)
         receiver = self.get_agent(to_id)
-
-        if not sender.knows_token:
-            raise ValueError(f"{from_id} (teacher) does not know token")
+        
         if receiver.knows_token:
             raise ValueError(f"{to_id} (receiver) already knows token")
+
+        if from_id is not None:
+            sender = self.get_agent(from_id)
+
+            if not sender.knows_token:
+                raise ValueError(f"{from_id} (teacher) does not know token")
+
+            sender.score -= cost_teacher
         
-        sender.score -= cost_teacher
         receiver.score -= cost_student
         receiver.receive_token()
 
