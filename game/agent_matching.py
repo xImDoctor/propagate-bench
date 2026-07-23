@@ -170,7 +170,7 @@ class RandomChoiceMatcher:
             rng: random.Random,
     ) -> list[Transfer]:
 
-        if config.initiation_mode == 'student_pays':
+        if config.initiation_mode == 'student_only':
             return _anonymous_student_match(game_state, round_result, llm, prompts, logger, config)
         # teacher_pays ver below
         
@@ -249,7 +249,7 @@ class FirstComeMatcher:
         rng: random.Random,
     ) -> list[Transfer]:
 
-        if config.initiation_mode == 'student_pays':
+        if config.initiation_mode == 'student_only':
             return _anonymous_student_match(game_state, round_result, llm, prompts, logger, config)
         # teacher_pays ver below
 
