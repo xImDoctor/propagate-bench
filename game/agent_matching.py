@@ -21,6 +21,22 @@ class Transfer:
     cost_student: float = 0.0
 
 
+# returns (cost_teacher, cost_student) based on payment_mode
+def _cost_pair(config: GameConfig) -> tuple[float, float]:
+
+    if config.payment_mode == 'teacher_pays':
+        return (config.share_cost, 0.0)
+    
+    if config.payment_mode == 'student_pays':
+        return (0.0, config.share_cost)
+    
+    if config.payment_mode == 'split':
+        half = config.share_cost / 2.0
+        return (half, half)
+    
+    raise NotImplementedError(f'unknown payment_mode: {config.payment_mode!r}')
+
+
 def _anonymous_match(
     game_state: GameState,
     round_result: RoundResult,
@@ -120,22 +136,6 @@ def _anonymous_student_match(
         ))
 
     return transfers
-
-
-# returns (cost_teacher, cost_student) based on payment_mode
-def _cost_pair(config: GameConfig) -> tuple[float, float]:
-
-    if config.payment_mode == 'teacher_pays':
-        return (config.share_cost, 0.0)
-    
-    if config.payment_mode == 'student_pays':
-        return (0.0, config.share_cost)
-    
-    if config.payment_mode == 'split':
-        half = config.share_cost / 2.0
-        return (half, half)
-    
-    raise NotImplementedError(f'unknown payment_mode: {config.payment_mode!r}')
 
 
 class Matcher(Protocol):

@@ -99,13 +99,13 @@ class GameConfig(BaseModel):
                     f"Available: {sorted(allowed)}"
                 )
 
-            current_pair = (self.initiation_mode, self.payment_mode)
-            if current_pair not in IMPLEMENTED_MODE_PAIRS:
-                raise NotImplementedError(
-                    f"(initiation_mode={current_pair[0]}, payment_mode={current_pair[1]}) "
-                    f"is not a correct or an implemented combination.\n"
-                    f"Available pairs: {sorted(IMPLEMENTED_MODE_PAIRS)}"
-                )
+        current_pair = (self.initiation_mode, self.payment_mode)
+        if current_pair not in IMPLEMENTED_MODE_PAIRS:
+            raise NotImplementedError(
+                f"(initiation_mode={current_pair[0]}, payment_mode={current_pair[1]}) "
+                f"is not a correct or an implemented combination.\n"
+                f"Available pairs: {sorted(IMPLEMENTED_MODE_PAIRS)}"
+            )
         
         return self
         
