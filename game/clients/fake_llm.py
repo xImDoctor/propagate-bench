@@ -69,7 +69,7 @@ class FakeLLMClient(LLMClient):
             return self._decide_share(messages)
 
         if field_names == {'request'}:
-            return self.__decide_request(messages)
+            return self._decide_request(messages)
 
         raise ValueError(f"FakeLLMClient does not know how to fabricate response for schema: {schema.__name__}")
 
