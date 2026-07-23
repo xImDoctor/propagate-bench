@@ -261,11 +261,11 @@ def sanitize(name: str) -> str:
     return name.replace('/', '-').replace(':', '-').replace(' ', '_')
 
 
-def default_output_paths(model: str, output_dir: str, n_seeds: int) -> tuple[Path, Path]:
+def default_output_paths(model: str, output_dir: str, n_seeds: int, payment_mode: str) -> tuple[Path, Path]:
     # include the start timestamp and seed count so parallel prompt-variant
     # runs do not overwrite each other
     ts = datetime.now(timezone.utc).strftime('%Y-%m-%d_%H-%M-%S')
-    stem = f'probe_expected_rounds_{sanitize(model)}_{ts}_{n_seeds}seeds'
+    stem = f'probe_expected_rounds_{sanitize(model)}_{ts}_{n_seeds}seeds_{sanitize(payment_mode)}'
     base = Path(output_dir)
 
     return base / f'{stem}.jsonl', base / f'{stem}.csv'
@@ -297,8 +297,9 @@ def main():
     use_reasoning = bool(grid.get('reasoning', False))
     model = grid['model']
     n_seeds = len(grid['seeds'])
+    payment_mode = str(grid.get('payment_mode', 'teacher_pays'))
 
-    jsonl_path, csv_path = default_output_paths(model, args.output_dir, n_seeds)
+    jsonl_path, csv_path = default_output_paths(model, args.output_dir, n_seeds, payment_mode)
     jsonl_path.parent.mkdir(parents=True, exist_ok=True)
 
     total_configs = len(configs)
