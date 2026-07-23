@@ -13,9 +13,9 @@ LLM call per combination. Anonymous mode only.
 
 The prompt is not locally patched to drop the reasoning field from the JSON
 schema instruction like in the probe_share.py because request version does not
-have reasoning field in the return format. Thisa probe uses min RequestBoolResponse
-to save output tokens. For reasoning-capable models, Together's reasoning field
-is extracted separately via TogetherLLMClient.structured_call_with_reasoning.
+have reasoning field in the return format. This probe uses original RequestResponse
+from prompt_builder.py to save output tokens. For reasoning-capable models, Together's
+reasoning field is extracted separately via TogetherLLMClient.structured_call_with_reasoning.
 
 Grid YAML format:
     n_agents:   [2, 3, 6, 10]
@@ -53,7 +53,7 @@ from pydantic import BaseModel
 
 from game.config import GameConfig
 from game.clients import LLMClient, OllamaLLMClient, TogetherLLMClient
-from game.prompt_builder import create_prompt_builder
+from game.prompt_builder import create_prompt_builder, RequestResponse
 from game.states import AgentState, ChatMessage, RoundResult
 
 # change token here to swap it in whole script runs
@@ -166,11 +166,11 @@ def run_one(config: GameConfig, use_reasoning: bool) -> dict:
 
         # if together and model is marked as reasoning one
         if use_reasoning and isinstance(llm, TogetherLLMClient):
-            response, reasoning = llm.structured_call_with_reasoning(messages, RequestBoolResponse)
+            response, reasoning = llm.structured_call_with_reasoning(messages, RequestResponse)
             record['request'] = response.request
             record['reasoning'] = reasoning
         else:
-            response = llm.structured_call(messages, RequestBoolResponse)
+            response = llm.structured_call(messages, RequestResponse)
             record['request'] = response.request
 
     except Exception as e:
