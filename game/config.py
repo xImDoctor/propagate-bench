@@ -6,9 +6,15 @@ from pydantic import BaseModel, ConfigDict, model_validator
 # 'check list' of implemented modes in config
 IMPLEMENTED_MODES: dict[str, set[str]] = {
     "matcher": {"random_choice", "first_come"},
-    "initiation_mode": {"teacher_only"},
-    "payment_mode": {"teacher_pays"},
+    "initiation_mode": {"teacher_only", "student_only"},
+    "payment_mode": {"teacher_pays", "student_pays"},
     "token_transfer_mode": {"direct"},
+}
+
+# only semantically valid/implemented combs: (initiator, payment)
+IMPLEMENTED_MODE_PAIRS: set[tuple[str, str]] = {
+    ("teacher_only", "teacher_pays"),
+    ("student_only", "student_pays"),
 }
 
 
@@ -92,6 +98,14 @@ class GameConfig(BaseModel):
                     f"{field}={value!r} not implemented yet.\n"
                     f"Available: {sorted(allowed)}"
                 )
+
+        current_pair = (self.initiation_mode, self.payment_mode)
+        if current_pair not in IMPLEMENTED_MODE_PAIRS:
+            raise NotImplementedError(
+                f"(initiation_mode={current_pair[0]}, payment_mode={current_pair[1]}) "
+                f"is not a correct or an implemented combination.\n"
+                f"Available pairs: {sorted(IMPLEMENTED_MODE_PAIRS)}"
+            )
         
         return self
         

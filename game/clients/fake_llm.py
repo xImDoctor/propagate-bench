@@ -68,6 +68,9 @@ class FakeLLMClient(LLMClient):
         if field_names >= {'share', 'target', 'reasoning'}:
             return self._decide_share(messages)
 
+        if field_names == {'request'}:
+            return self._decide_request(messages)
+
         raise ValueError(f"FakeLLMClient does not know how to fabricate response for schema: {schema.__name__}")
 
     def _extract_token(self, messages: list[ChatMessage]) -> str | None:
@@ -91,6 +94,17 @@ class FakeLLMClient(LLMClient):
         # ALWAYS_SHARE or RANDOM_SHARE passed so take first unknown agent
         target = self._first_unknowing(messages)
         return {'share': True, 'target': target, 'reasoning': 'fake: strategy decided to share'}
+
+    # mirror ver of _decide_share for student_pays mode
+    # brings token from the game, not an informed player
+    def _decide_request(self, messages: list[ChatMessage]) -> dict:
+        if self.strategy == FakeStrategy.NEVER_SHARE:
+            return {'request': False}
+
+        if self.strategy == FakeStrategy.RANDOM_SHARE and self.rng.random() >= self.share_probability:
+            return {'request': False}
+
+        return {'request': True}
 
     def _first_unknowing(self, messages: list[ChatMessage]) -> str | None:
         for message in reversed(messages):

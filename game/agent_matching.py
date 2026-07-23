@@ -6,7 +6,7 @@ from typing import Protocol
 from .config import GameConfig
 from .clients import LLMClient
 from .states import GameState, RoundResult
-from .prompt_builder import PromptBuilder, ShareResponse
+from .prompt_builder import PromptBuilder, ShareResponse, RequestResponse
 
 from .llm_runner import call_with_retry
 
@@ -15,10 +15,26 @@ from .logger import EventLogger
 
 @dataclass
 class Transfer:
-    from_id: str
+    from_id: str | None # none if token is given by the game
     to_id: str
     cost_teacher: float
     cost_student: float = 0.0
+
+
+# returns (cost_teacher, cost_student) based on payment_mode
+def _cost_pair(config: GameConfig) -> tuple[float, float]:
+
+    if config.payment_mode == 'teacher_pays':
+        return (config.share_cost, 0.0)
+    
+    if config.payment_mode == 'student_pays':
+        return (0.0, config.share_cost)
+    
+    if config.payment_mode == 'split':
+        half = config.share_cost / 2.0
+        return (half, half)
+    
+    raise NotImplementedError(f'unknown payment_mode: {config.payment_mode!r}')
 
 
 def _anonymous_match(
@@ -36,6 +52,7 @@ def _anonymous_match(
     if not unknowing:
         return []
 
+    cost_teacher, cost_student = _cost_pair(config)
     transfers: list[Transfer] = []
     student_iter = iter(unknowing)  # deterministic order by agent_id
 
@@ -68,7 +85,54 @@ def _anonymous_match(
 
         transfers.append(Transfer(
             from_id=teacher.agent_id, to_id=student.agent_id,
-            cost_teacher=config.share_cost, cost_student=0.0,
+            cost_teacher=cost_teacher, cost_student=cost_student,
+        ))
+
+    return transfers
+
+
+def _anonymous_student_match(
+    game_state: GameState,
+    round_result: RoundResult,
+    llm: LLMClient,
+    prompts: PromptBuilder,
+    logger: EventLogger,
+    config: GameConfig,
+) -> list[Transfer]:
+    """A matching-helper for student_pays where the word is granted by the game.
+    No matching conflics like in default match-helper"""
+
+    unknowing = game_state.unknowing_agents()
+
+    if not unknowing or not game_state.knowing_agents():
+        return []
+
+    cost_teacher, cost_student = _cost_pair(config)
+    transfers: list[Transfer] = []
+
+    for student in unknowing:
+        prompt_text = prompts.build_request_prompt(student, round_result)
+        response = call_with_retry(
+            student, prompt_text, RequestResponse,
+            llm, logger, 'request', config.max_retries,
+        )
+        if response is None:
+            response = RequestResponse(request=False)
+
+        logger.log(
+            'share_decision',
+            {'request': response.request, 'initiator_role': 'student'},
+            agent_id=student.agent_id,
+        )
+
+        if not response.request:
+            continue
+
+        transfers.append(Transfer(
+            from_id=None,           # game grants, no specific teacher
+            to_id=student.agent_id,
+            cost_teacher=cost_teacher,
+            cost_student=cost_student,
         ))
 
     return transfers
@@ -105,6 +169,10 @@ class RandomChoiceMatcher:
             config: GameConfig,
             rng: random.Random,
     ) -> list[Transfer]:
+
+        if config.initiation_mode == 'student_only':
+            return _anonymous_student_match(game_state, round_result, llm, prompts, logger, config)
+        # teacher_pays ver below
         
         if config.is_anonymous:
             return _anonymous_match(game_state, round_result, llm, prompts, logger, config)
@@ -112,6 +180,8 @@ class RandomChoiceMatcher:
         unknowing_names = [a.display_name for a in game_state.unknowing_agents()]
         if not unknowing_names:
             return []
+
+        cost_teacher, cost_student = _cost_pair(config)
 
         name_to_id = {a.display_name: a.agent_id for a in game_state.agents}
         decisions: dict[str, ShareResponse] = {}
@@ -152,8 +222,8 @@ class RandomChoiceMatcher:
                 Transfer(
                     from_id=winner_id,
                     to_id=target_id,
-                    cost_teacher=config.share_cost,
-                    cost_student=0.0,
+                    cost_teacher=cost_teacher,
+                    cost_student=cost_student,
                 )
             )
 
@@ -179,6 +249,10 @@ class FirstComeMatcher:
         rng: random.Random,
     ) -> list[Transfer]:
 
+        if config.initiation_mode == 'student_only':
+            return _anonymous_student_match(game_state, round_result, llm, prompts, logger, config)
+        # teacher_pays ver below
+
         if config.is_anonymous:
             return _anonymous_match(game_state, round_result, llm, prompts, logger, config)
 
@@ -187,6 +261,8 @@ class FirstComeMatcher:
             return []
 
         name_to_id = {a.display_name: a.agent_id for a in game_state.agents}
+
+        cost_teacher, cost_student = _cost_pair(config)
 
         transfers: list[Transfer] = []
         taken: set[str] = set()  # display_names
@@ -246,7 +322,7 @@ class FirstComeMatcher:
                 target_id = name_to_id[d.target]
                 transfers.append(
                     Transfer(from_id=teacher_id, to_id=target_id,
-                             cost_teacher=config.share_cost, cost_student=0.0)
+                             cost_teacher=cost_teacher, cost_student=cost_student)
                 )
 
             pending = next_pending

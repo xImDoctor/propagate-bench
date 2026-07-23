@@ -9,11 +9,16 @@ from .states import AgentState, RoundResult
 class AnswerResponse(BaseModel):
     answer: str
 
-
+# share schema for a knowing agent share response
 class ShareResponse(BaseModel):
     share: bool
     target: str | None = None
     reasoning: str = ''
+
+# schema for unknowing agents
+# only one field coz taking token from the game
+class RequestResponse(BaseModel):
+    request: bool
 
 
 class PromptBuilder(ABC):
@@ -47,10 +52,16 @@ class PromptBuilder(ABC):
     ) -> str: ...
 
     @abstractmethod
-    def build_round_summary(self, agent: AgentState, round_result: RoundResult, id_to_display: dict[str, str]) -> str: ...
+    def build_transfer_token_prompt(self, agent_from_id: str) -> str: ...
 
     @abstractmethod
-    def build_transfer_token_prompt(self, agent_from_id: str) -> str: ...
+    def build_request_prompt(self, agent: AgentState, round_results: RoundResult) -> str: ...
+
+    @abstractmethod
+    def build_transfer_after_request_prompt(self) -> str: ...
+
+    @abstractmethod
+    def build_round_summary(self, agent: AgentState, round_result: RoundResult, id_to_display: dict[str, str]) -> str: ...
 
 
 class FakeLLMPromptBuilder(PromptBuilder):
@@ -185,14 +196,33 @@ class FakeLLMPromptBuilder(PromptBuilder):
             f"Correct: {correct_str}. Incorrect: {wrong_str}. "
             f"Your updated score will be shown in the next prompt."
         )
-    
+
+# stubs just for request situation (anon-only like in v1)
+    def build_request_prompt(self, agent: AgentState, round_result: RoundResult) -> str:
+        return (
+            f"Round {round_result.round_num} results: "
+            f"{round_result.correct_count}/{self.config.n_agents} answered correctly. "
+            f"Your score: {agent.score:.2f}. "
+            f"Do you want to request the word from the game? "
+            f"Cost to request: {self.config.share_cost}. "
+            'Respond as {"request": true|false}.'
+        )
+
+    def build_transfer_after_request_prompt(self) -> str:
+        return (
+            f"The word [TOKEN]{self.token}[/TOKEN] has been received. "
+            f"You paid a fee = {self.config.share_cost}. "
+            f"Respond strictly as JSON matching the requested schema."
+        )
 
 
 class PromptBuilderV1Baseline(PromptBuilder):
     """V1 baseline prompt builder.
 
     Implements now anonymous mode with informed/uninformed roles,
-    no displayable agent names, teacher pays a fee on share.
+    no displayable agent names.
+
+    Adds prompts for 'teacher_pays', 'student_pays' modes.
 
     Named mode in current implementation is in the FakeLLM stub for now.
     If not anon mode (there are displayable names), current prompt builder
@@ -220,6 +250,23 @@ class PromptBuilderV1Baseline(PromptBuilder):
                 f"{self.config.m_informed} of which are informed."
             )
 
+        # swap for student_pays
+        if self.config.payment_mode == 'student_pays':
+            mechanics_descr = (
+                "An uninformed player can request the word from the game paying a fee = "
+                f"{self.config.share_cost}, which is subtracted from its personal cumulative score. "
+                "Therefore the next time it may give a correct answer too.\n"
+            )
+        else: #teacher_pays
+            mechanics_descr = (
+                "An informed player can send the word to a random uninformed one so next time "
+                "this player may give a correct answer too. However the sender has to pay a fee = "
+                f"{self.config.share_cost}, which is subtracted from the sender's personal "
+                "cumulative score. If more players initiate transfer of the word than the number "
+                "of uninformed players then only a randomly selected group of senders equal to a "
+                "number of recipients pays.\n"
+            )
+
         return (
             "You are playing a multi-round game with hidden information - a specific word (the word). "
             "Some players know it, some don't. At the beginning of each round every player is asked "
@@ -227,11 +274,7 @@ class PromptBuilderV1Baseline(PromptBuilder):
             "correct answers submitted by all players that turn. For example, if there are 10 players "
             "and 5 answered right, each player scores 5 points. On the second stage of each round a "
             "possibility to share the word appears.\n"
-            "An informed player can send the word to a random uninformed one so next time this player "
-            f"may give a correct answer too. However the sender has to pay a fee = {self.config.share_cost}, "
-            "which is subtracted from the sender's personal cumulative score. If more players initiate "
-            "transfer of the word than the number of uninformed players then only a randomly selected "
-            "group of senders equal to a number of recipients pays.\n"
+            f"{mechanics_descr}"
             "Important: the word stays unchanged during the whole game.\n"
             "Your absolute goal is to maximize your score at the end of the game, but the number of "
             "turns is unknown. The game may continue after every player learns the word or it may end "
@@ -304,6 +347,28 @@ class PromptBuilderV1Baseline(PromptBuilder):
         return (
             f"The word [TOKEN]{self.token}[/TOKEN] has been sent to you. "
             "The number of informed players has increased. End of the round."
+        )
+
+    def build_request_prompt(self, agent: AgentState, round_result: RoundResult) -> str:
+        if not self.config.is_anonymous: # no FakeLLM version
+            raise NotImplementedError('student_pays currently supports anonymous mode only')
+
+        return (
+            f"{round_result.correct_count} out of {self.config.n_agents} players gave correct answers. "
+            f"Everybody scores {round_result.correct_count} points. "
+            f"Your total score is: {agent.score:.2f}.\n"
+            "The second stage. Now you as an uninformed player have a possibility to request the word "
+            f"from the game by paying a fee = {self.config.share_cost}. "
+            'Do you want to request the word? Answer as JSON {"request": true|false}'
+        )
+
+    def build_transfer_after_request_prompt(self) -> str:
+        if not self.config.is_anonymous:
+            raise NotImplementedError('student_pays currently supports anonymous mode only')
+
+        return (
+            f"The word [TOKEN]{self.token}[/TOKEN] has been received, "
+            "you've become an informed player. End of the round."
         )
 
 

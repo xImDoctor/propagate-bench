@@ -10,7 +10,7 @@ import random
 from pathlib import Path
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from game.clients import FakeLLMClient, FakeStrategy
 from game.clients.base_client import LLMClient
@@ -126,3 +126,40 @@ def test_anonymous_share_prompt_has_no_target_list(tmp_path, make_config):
         # no agent_ids in the prompt text
         text = r['payload']['message_appended']['content']
         assert 'agent_0' not in text and 'agent_1' not in text
+
+
+def test_student_initiated_anon_transfer(tmp_path, make_config):
+    """N=2, K=1, ALWAYS_SHARE fake, student_pays.
+    After round 1: student paid share_cost, teacher's score unchanged (only got round reward),
+    both know the token, no forced_teach_notice in teacher's context (student_pays doesn't emit it)"""
+
+    cfg = make_config(
+        n_agents=2, m_informed=1,
+        initiation_mode='student_only', payment_mode='student_pays',
+        share_cost=1.0, max_rounds=1,
+    )
+    log_path = tmp_path / 'run.jsonl'
+    
+    with EventLogger(log_path) as lg:
+        llm = FakeLLMClient(strategy=FakeStrategy.ALWAYS_SHARE, rng=random.Random(42))
+        eng = GameEngine(config=cfg, llm=llm, logger=lg)
+        eng.run()
+
+    events = [json.loads(l) for l in log_path.read_text().splitlines() if l.strip()]
+
+    # student was really examined
+    share_decisions = [e for e in events if e['event'] == 'share_decision']
+    assert len(share_decisions) == 1
+    assert share_decisions[0]['payload'] == {'request': True, 'initiator_role': 'student'}
+    assert share_decisions[0]['agent_id'] == 'agent_1'  # or whichever is unknowing
+
+    # request-flow prompt was taken by receiver
+    transfer_notices = [e for e in events if e['event']=='summary_to_context'
+                    and e['payload']['phase']=='token_received']
+    assert len(transfer_notices) == 1
+    assert 'has been received' in transfer_notices[0]['payload']['content']
+    assert "you've become an informed player" in transfer_notices[0]['payload']['content']
+
+    state = eng.game_state
+    assert all(a.knows_token for a in state.agents)
+    assert sum(a.score for a in state.agents) == pytest.approx(1.0)

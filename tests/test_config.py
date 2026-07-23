@@ -36,11 +36,6 @@ def test_share_cost_negative(make_config):
         make_config(share_cost=-1.0)
 
 
-def test_reserved_payment_mode_not_implemented(make_config):
-    with pytest.raises(NotImplementedError):
-        make_config(payment_mode='split')
-
-
 def test_extra_field_forbidden(make_config):
     with pytest.raises(ValueError):
         make_config(nonexistent_field=123)
@@ -67,3 +62,25 @@ def test_from_yaml(tmp_path):
     assert cfg.share_cost == 1.5
     assert cfg.seed == 99
     assert cfg.matcher == 'random_choice'
+
+
+def test_split_payment_still_not_implemented(make_config):
+    with pytest.raises(NotImplementedError):
+        make_config(payment_mode='split')
+
+
+def test_student_only_with_student_pays_accepted(make_config):
+    cfg = make_config(initiation_mode='student_only', payment_mode='student_pays')
+
+    assert cfg.initiation_mode == 'student_only'
+    assert cfg.payment_mode == 'student_pays'
+
+
+def test_teacher_only_with_student_pays_rejected(make_config):
+    with pytest.raises(NotImplementedError):
+        make_config(payment_mode='student_pays')  # default initiation_mode=teacher_only
+
+
+def test_student_only_with_teacher_pays_rejected(make_config):
+    with pytest.raises(NotImplementedError):
+        make_config(initiation_mode='student_only')  # default payment_mode=teacher_pays

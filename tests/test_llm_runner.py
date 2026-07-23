@@ -7,7 +7,7 @@ from pydantic import BaseModel, ValidationError
 from game.clients.base_client import LLMClient
 from game.llm_runner import call_with_retry, FormatLimitExhausted
 from game.logger import EventLogger
-from game.states import AgentState, ChatMessage
+from game.states import AgentState
 
 
 class _Toy(BaseModel):

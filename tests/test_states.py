@@ -179,3 +179,14 @@ def test_initialize_display_names_random_differs_from_first_n(make_config, tmp_p
 
     assert first == ['name_0', 'name_1', 'name_2', 'name_3', 'name_4']
     assert rand != first  # different with high probability
+
+
+def test_apply_transfer_sender_none_grants_from_game(make_config):
+    state = _state(make_config, n_agents=2, m_informed=1)
+    student = state.unknowing_agents()[0]
+    student.score = 3.0
+    
+    state.apply_transfer(None, student.agent_id, cost_teacher=0.0, cost_student=1.0)
+
+    assert student.knows_token is True
+    assert student.score == 2.0
