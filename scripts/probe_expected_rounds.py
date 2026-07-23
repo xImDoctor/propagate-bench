@@ -2,11 +2,11 @@
 game to last, doing it right after the system prompt. 
 No answer phase or faked reply.
 
-Measures the integer expectation across varying N, K, P for one informed
+Measures the integer expectation across varying N, K, C for one informed
 agent, in anonymous mode. Where:
     N - number of agents in the game (n_agents)
     K - number of informed agents (m_informed)
-    P - cost/price of sharing (share_cost)
+    C - cost/price of sharing (share_cost)
 
 Same grid loader as scripts/probe_share.py, but
 without early stopping (integer answers are almost never all-identical
@@ -21,6 +21,11 @@ Grid YAML format (shared with probe_share.py):
     seeds:      [42, 43, ..., 51]
     model, api_type, reasoning, request_timeout
 
+In addition, included optional field 'payment_mode'.
+YAML config:
+    payment_mode: 'teacher_pays' | 'student_pays'
+If it is skipped, uses 'teacher_pays' by default (standard run)
+    
 early_stopping is ignored here.
 
 Output:
@@ -91,9 +96,17 @@ def build_llm(config: GameConfig) -> LLMClient:
     raise NotImplementedError(f"api_type={config.api_type!r} not supported by probe_expected_rounds")
 
 
-def stub_config(n_agents: int, m_informed: int, share_cost: float, seed: int,
-                model: str, api_type: Literal['ollama', 'together', 'fake'],
-                request_timeout: float = 60.0) -> GameConfig:
+def stub_config(n_agents: int,
+                m_informed: int,
+                share_cost: float,
+                seed: int,
+                model: str,
+                api_type: Literal['ollama', 'together', 'fake'],
+                request_timeout: float = 60.0,
+                payment_mode: Literal['teacher_pays', 'student_pays', 'split'] = 'teacher_pays',
+) -> GameConfig:
+
+    initiation_mode = 'student_only' if payment_mode == 'student_pays' else 'teacher_only'
 
     return GameConfig(
         n_agents=n_agents,
@@ -107,6 +120,8 @@ def stub_config(n_agents: int, m_informed: int, share_cost: float, seed: int,
         request_timeout=request_timeout,
         template_version='v1_baseline',
         matcher='first_come',
+        initiation_mode=initiation_mode,
+        payment_mode=payment_mode,
     )
 
 
@@ -115,10 +130,11 @@ def make_messages(config: GameConfig) -> list[ChatMessage]:
 
     prompts = create_prompt_builder(config, STUB_TOKEN)
 
-    # informed agent that hasnt played yet (score is at starting_capital)
+    # informed or uninformed agent that has not played yet
+    # score is at starting_capital
     agent = AgentState(
         agent_id='agent_0',
-        knows_token=True,
+        knows_token=(config.payment_mode == 'teacher_pays'), # true if informed (teacher pays)
         score=config.starting_capital,
     )
 
@@ -190,6 +206,9 @@ def expand_grid(grid: dict) -> list[dict]:
     api_type = grid['api_type']
     request_timeout = grid.get('request_timeout', 60.0)
 
+    # if used student_pays get else - default teacher_pays
+    payment_mode = grid.get('payment_mode', 'teacher_pays')
+
     # optional explicit price list, two forms accepted:
     #   share_costs: [0.1, 1, ...]            - flat list, applied to every K in this run
     #   share_costs: {19: [0.1, 1, 4.5, ...]} - per-K dict; K not listed falls back to share_costs_for_k(k)
@@ -222,6 +241,7 @@ def expand_grid(grid: dict) -> list[dict]:
                     'model': model, 'api_type': api_type,
                     'request_timeout': request_timeout,
                     'seeds': list(seeds),
+                    'payment_mode': payment_mode,
                 })
 
     return configs
