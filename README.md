@@ -23,6 +23,7 @@ A configurable multi-agent game engine, plus one-call probe scripts that let you
 5. [Experimental probes](#experimental-probes)
    - [Grid probes: shared grid YAML format](#grid-probes-shared-grid-yaml-format)
    - [`probe_share.py` – will the informed agent share?](#probe_sharepy--will-the-informed-agent-share)
+   - [`probe_request.py` – will the uninformed agent request the word from the game?](#probe_requestpy--will-the-uninformed-agent-request-the-word-from-the-game)
    - [`probe_expected_rounds.py` – how long does the agent think the game will last?](#probe_expected_roundspy--how-long-does-the-agent-think-the-game-will-last)
    - [`probe_together.py` – Together API sanity check](#probe_togetherpy--together-api-sanity-check)
    - [`probe_rounds.py` – legacy ver. of expected-rounds probe with single config](#probe_roundspy--legacy-single-config-expected-rounds-probe)
@@ -221,7 +222,7 @@ The probes hand-build the agent context (system prompt + optionally an answer-ph
 
 ### Grid probes: shared grid YAML format
 
-`probe_share.py` and `probe_expected_rounds.py` share the same YAML schema:
+`probe_share.py`, `probe_request.py` and `probe_expected_rounds.py` share the same YAML:
 
 ```yaml
 n_agents:   [2, 3, 6, 10]                                # population sizes N
@@ -232,21 +233,35 @@ model:      openai/gpt-oss-20b                           # LLM acting as agents
 api_type:   together                                     # API provider (could be together, ollama or fake)
 reasoning:  true                                         # request reasoning trace (Together only)
 request_timeout: 240
+
+# optional — override the default per-K price grid:
+#   flat list  → same set of C values applied to every K
+#   per-K dict → K not listed falls back to the default share_costs_for_k(k)
+share_costs:
+  19: [0.1, 1, 4.5, 9.5, 14, 19]
+
+# optional — only for probe_expected_rounds:
+#   'teacher_pays' (default) — asks an informed agent, system prompt mentions the sender pays a fee
+#   'student_pays'           — asks an uninformed agent, system prompt mentions the requester pays
+payment_mode: teacher_pays
 ```
 
-`share_cost` per `K` is derived automatically as unique values of `[0.1, 1, K/2, K]` (`K/2` included only if `1 < K/2 < K`). **Total: 35 cells**.
+`share_cost` per `K` is derived automatically as unique values of `[0.1, 1, K/2, K]` (`K/2` included only if `1 < K/2 < K`). **Total: 35 cells** for the standard grid; extra cells appear per any `share_costs` override. `probe_share.py` and `probe_request.py` ignore `payment_mode` (each script fixes its own mode); only `probe_expected_rounds.py` honours it (because works with both modes)
 
-Ready-made experiment configs in `configs/probes/`:
+Ready-made experiment configs in [`configs/probes/`](/configs/probes):
 
 | File | Purpose |
 |---|---|
 | `probe_ollama_smoke.yaml` | tiny smoke on local Ollama, `early_stopping: true` |
 | `probe_<model>_10seeds.yaml` | 10-seed grid on Together API, `early_stopping: true` |
 | `probe_<model>_100seeds.yaml` | 100-seed grid on Together API, `early_stopping: false` |
+| `probe_<model>_N20_K19_100seeds.yaml` | "all but one know" slice at N=20 with a custom `share_costs` sweep |
 
 ### `probe_share.py` – will the informed agent share?
 
 Measures **`p(share=True)`** in the first round, per `(N, K, C, seed)`. Uses a minimal `ShareBoolResponse = {"share": bool}` schema to save output tokens; the prompt template's `"reasoning"` clause is locally regex-patched out. For reasoning-capable Together models the reasoning trace is captured separately.
+
+Fixes the game to `teacher_only` initiation + `teacher_pays` payment (fixes these game modes). The stub token used in the faked answer phase is `STUB_TOKEN = 'color'`. Change the module-level constant if you need to swap the word.
 
 > [!WARNING]
 > Currently works in **anonymous** mode only.
@@ -263,16 +278,45 @@ python scripts/probe_share.py --grid-file configs/probes/probe_qwen3_235b_10seed
 - `probes/probe_share_<sanitized_model>_<YYYY-MM-DD>.jsonl`
 - `probes/probe_share_<sanitized_model>_<YYYY-MM-DD>.csv`
 
+### `probe_request.py` – will the uninformed agent request the word from the game?
+
+Mirror of `probe_share.py` for the `student_pays` regime. Measures **`p(request=True)`** in the first round, per `(N, K, C, seed)`, from the perspective of an **uninformed** agent that pays a fee to receive the word, and it gives the word **directly from the game** (no specific teacher). Uses schema `RequestResponse = {"request": bool}`.
+
+Fixes the game to `initiation_mode='student_only'` + `payment_mode='student_pays'`. Context construction differs from `probe_share.py`:
+- the probed agent has `knows_token=False`
+- the faked answer-phase reply is `{"answer": "<unknown>"}` (a student cannot guess, the reply fixes that agent does not know the word)
+- the second-stage prompt is `build_request_prompt(...)` (game-level request wording)
+
+> [!WARNING]
+> Currently works in **anonymous** mode only.
+
+Run:
+
+```bash
+python scripts/probe_request.py --grid-file configs/probes/probe_qwen2_5_7b_turbo_100seeds.yaml
+```
+
+**Output:**
+- `probes/probe_request_<sanitized_model>_<YYYY-MM-DD>.jsonl`
+- `probes/probe_request_<sanitized_model>_<YYYY-MM-DD>.csv`
+
+Column names in the JSONL/CSV: `request` (bool) instead of `share`. All other fields (`n_agents`, `m_informed`, `share_cost`, `seed`, `reasoning`, `error`) match `probe_share.py`.
+
 ### `probe_expected_rounds.py` – how long does the agent think the game will last?
 
-Asks a single informed agent, right after the system prompt (no answer phase, no faked reply), how many rounds it expects the game to last. Response schema is `RoundsExpectation = {"number": int}`.
+Asks a single agent, right after the system prompt (no answer phase, no faked reply), how many rounds it expects the game to last. Response schema is `RoundsExpectation = {"number": int}`.
 
 The follow-up user question in the current `V1` variant is:
 
 > Knowing everything above, give your best guess concerning the game length in rounds? Answer as JSON `{"number": int}`
 
-
 Earlier `BASELINE` wording used *"what is your expectation concerning..."* and produced a noticeably different distribution. Both variants are kept at the top of the script; switch by reassigning the module-level `user_question`.
+
+**Payment mode.** Optional `payment_mode` field in the YAML grid switches between two regimes:
+- `teacher_pays` (default) — probes an **informed** agent; system prompt describes the teacher paying a fee.
+- `student_pays` — probes an **uninformed** agent; system prompt describes the requester paying a fee.
+
+Both regimes ask the same follow-up question, so any distributional shift is attributable to the system-prompt framing (or agent role), not to the question itself.
 
 Run:
 
@@ -283,8 +327,10 @@ python scripts/probe_expected_rounds.py --grid-file configs/probes/probe_qwen3_2
 `early_stopping` is **ignored** here: integer answers are almost never identical across seeds, so early stopping would never trigger.
 
 **Output:**
-- `probes/probe_expected_rounds_<sanitized_model>_<YYYY-MM-DD_HH-MM-SS>_<N>seeds.jsonl`
-- `probes/probe_expected_rounds_<sanitized_model>_<YYYY-MM-DD_HH-MM-SS>_<N>seeds.csv`
+- `probes/probe_expected_rounds_<sanitized_model>_<YYYY-MM-DD_HH-MM-SS>_<N>seeds_<payment_mode>.jsonl`
+- `probes/probe_expected_rounds_<sanitized_model>_<YYYY-MM-DD_HH-MM-SS>_<N>seeds_<payment_mode>.csv`
+
+`payment_mode` is embedded in the filename so parallel runs of the same model under different modes do not overwrite each other.
 
 ### `probe_together.py` – Together API sanity check
 
@@ -383,6 +429,7 @@ agent-knowgame/
 ├── scripts/
 │   ├── run_game.py                # main entry point for full games
 │   ├── probe_share.py             # p(share) grid probe
+│   ├── probe_request.py           # p(request) mirror of probe_share.py
 │   ├── probe_expected_rounds.py   # expected-rounds grid probe (V1)
 │   ├── probe_together.py          # Together API sanity check
 │   ├── probe_rounds.py            # legacy single-config rounds probe
