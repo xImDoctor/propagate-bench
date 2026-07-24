@@ -159,7 +159,8 @@ Console inline args overwrite values from the YAML. Log traces (JSONL) land unde
 | `--matcher` | str | `random_choice` / `first_come` |
 | `--fake-strategy` | str | `FakeLLMClient` share-phase strategy: `always_share` / `never_share` / `random_share` |
 
-Reserved fields (`initiation_mode`, `payment_mode`, `token_transfer_mode`) currently only work with their defaults (`teacher_only`, `teacher_pays`, `direct`); other values are validated but not implemented.
+> [!IMPORTANT]
+> The reserved fields (`initiation_mode`, `payment_mode`, `token_transfer_mode`) previously worked only with default values (`teacher_only`, `teacher_pays`, `direct`). Valid (available) pairs are now provided `(teacher_only, teacher_pays)`, `(student_only, student_pays)`, the token transfer mode is still `direct` only.
 
 > [!WARNING]
 > If you try to select modes that are not implemented, the game will not start (fallback with a warning).
