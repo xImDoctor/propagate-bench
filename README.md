@@ -393,7 +393,7 @@ Update `configs/together_prices.yaml` manually when Together changes its pricing
 python -m pytest
 ```
 
-**48 automatic tests** currently, organised by module. What each file covers:
+**55 automatic tests** currently, organised by module. What each file covers:
 
 | File | Focus | Highlights |
 |---|---|---|
