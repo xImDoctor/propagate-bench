@@ -58,3 +58,8 @@ together:Qwen/Qwen3.5-9B:
 together:Qwen/Qwen2.5-7B-Instruct-Turbo:
   input: 0.0003
   output: 0.0003
+
+# up to date 2026-09-03: serverless flash, non-reasoning
+together:deepseek-ai/DeepSeek-V4-Flash-0731:
+  input: 0.00014
+  output: 0.00028
