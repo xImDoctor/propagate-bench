@@ -37,10 +37,25 @@ def _load(path: Path) -> dict:
 
 
 def _add_into(dst: dict, src: dict) -> None:
+    """Add all counter fields from src into dst, per model key. 
+    
+    DeepSeek fields (prompt_cache_hit_tokens, completion_reasoning_tokens)
+    default to 0 when either side lacks them.
+    """
     for key, tok in src.items():
-        entry = dst.get(key, {'prompt_tokens': 0, 'completion_tokens': 0})
-        entry['prompt_tokens'] += int(tok.get('prompt_tokens', 0) or 0)
-        entry['completion_tokens'] += int(tok.get('completion_tokens', 0) or 0)
+        entry = dst.get(key, {
+            'prompt_tokens': 0,
+            'completion_tokens': 0,
+            'prompt_cache_hit_tokens': 0,
+            'completion_reasoning_tokens': 0,
+        })
+        entry.setdefault('prompt_cache_hit_tokens', 0)
+        entry.setdefault('completion_reasoning_tokens', 0)
+
+        entry['prompt_tokens']                += int(tok.get('prompt_tokens', 0) or 0)
+        entry['completion_tokens']            += int(tok.get('completion_tokens', 0) or 0)
+        entry['prompt_cache_hit_tokens']      += int(tok.get('prompt_cache_hit_tokens', 0) or 0)
+        entry['completion_reasoning_tokens']  += int(tok.get('completion_reasoning_tokens', 0) or 0)
 
         dst[key] = entry
 

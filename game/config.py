@@ -37,7 +37,7 @@ class GameConfig(BaseModel):
 
     # LLM
     model: str
-    api_type: Literal['ollama', 'together', 'fake']
+    api_type: Literal['ollama', 'together', 'deepseek', 'fake']
 
     top_p: float = 1.0
     temperature: float = 0.7
@@ -85,7 +85,7 @@ class GameConfig(BaseModel):
         if self.max_retries < 0:
             raise ValueError('max_retries must be >= 0')
         
-        if self.api_type == 'together' and self.max_tokens <= 0:
+        if self.api_type in ('together', 'deepseek') and self.max_tokens <= 0:
             raise ValueError('max_tokens must be >0 to run with Together API')
         
 
