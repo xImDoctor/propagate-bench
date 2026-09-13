@@ -1,0 +1,82 @@
+# Annotated grid-config template for all provided now probes.
+# Copy and edit for your experiment. Do not run directly (current values are placeholders).
+#
+# Consumed by: probe_share.py, probe_request.py, probe_expected_rounds.py.
+# The payment_mode field is read ONLY by probe_expected_rounds – the other
+# probes fix the mode internally (see README.md).
+
+
+# --------------- Experiment grid ---------------
+
+# Number of agents in a game. The list is the sweep over N.
+n_agents:   [2, 3, 6, 10]
+
+# Number of informed agents per N (parallel list).
+# len(m_informed) must equal len(n_agents).
+# Each inner list is the set of K values for the matching N. Constraint: 0 < K < N.
+m_informed: [[1], [1, 2], [1, 3, 5], [1, 3, 5, 7, 9]]
+
+
+# --------------- Share cost (C) ---------------
+
+# By default the price set for each K is [0.1, 1, K/2, K],
+# where K/2 is included only if 1 < K/2 < K.
+# For the (n_agents, m_informed) grid above that yields 35 cells total.
+
+# Optional – override the price set. Two forms accepted:
+
+# Form A: flat list – applied to every K.
+# share_costs: [0.1, 1, 5, 10]
+
+# Form B: dict K -> price list. Any K not in the dict falls back to the default.
+#
+# share_costs:
+#   19: [0.1, 1, 4.5, 9.5, 14, 19]
+
+
+# --------------- Seeds and early stopping ---------------
+
+# Pool of RNG seeds. Each seed is an independent run, all else being equal.
+seeds: [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]
+
+# Early stopping (probe_share.py and probe_request.py only; probe_expected_rounds ignores it):
+#   true  – first half of seeds is run first; if every result is identical the
+#           second half is skipped. Saves calls on "obvious" cells.
+#   false – every seed is always run.
+# Usually false for 100-seed statistical runs; true for 10-seed sanity runs.
+early_stopping: true
+
+
+# --------------- Model and API ---------------
+
+# Model id as understood by the corresponding provider:
+#   ollama:   name as in `ollama list` (e.g. qwen2.5:3b, llama3.2:3b)
+#   together: full id (e.g. openai/gpt-oss-20b, Qwen/Qwen2.5-7B-Instruct-Turbo)
+model:    qwen2.5:3b
+
+# Backend: ollama | together | fake (fake as a sanity check, not a real model)
+api_type: ollama
+
+# Whether to capture the reasoning field from Together responses (thinking models).
+# Works only with api_type=together on models that actually return reasoning.
+# Keep false for non-thinking models and Ollama – no trap otherwise, the field
+# just comes back empty.
+reasoning: false
+
+# Timeout of a single LLM call, seconds.
+# Recommended to change, especially for thinking models.
+request_timeout: 60
+
+
+# --------------- probe_expected_rounds.py only ---------------
+
+# Optional. Sets the role of the probed agent and the framing of the system prompt:
+#   teacher_pays (default) – an INFORMED agent is probed; system prompt describes
+#                            the "teacher pays for the transfer" model.
+#   student_pays           – an UNINFORMED agent is probed; system prompt describes
+#                            the "student pays the game for the token" model.
+# Both modes ask the same rounds question, but with different system prompts.
+#
+# probe_share.py and probe_request.py ignore this field because they are designed
+# directly for specific runs.
+payment_mode: teacher_pays

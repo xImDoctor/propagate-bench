@@ -251,14 +251,20 @@ payment_mode: teacher_pays
 
 `share_cost` per `K` is derived automatically as unique values of `[0.1, 1, K/2, K]` (`K/2` included only if `1 < K/2 < K`). **Total: 35 cells** for the standard grid; extra cells appear per any `share_costs` override. `probe_share.py` and `probe_request.py` ignore `payment_mode` (each script fixes its own mode); only `probe_expected_rounds.py` honours it (because works with both modes)
 
-Ready-made experiment configs in [`configs/probes/`](/configs/probes):
+Ready-made experiment configs live in [`configs/probes/`](/configs/probes), grouped into per-family subfolders (`deepseek/`, `gpt-oss/`, `qwen/`).
 
-| File | Purpose |
+Two files stay at the root because they are not tied to a family: `probe_template.yaml` (starter template, just copy and edit for your own experiments) and `probe_ollama_smoke.yaml` (tiny local-Ollama smoke).
+
+| File pattern | Purpose |
 |---|---|
-| `probe_ollama_smoke.yaml` | tiny smoke on local Ollama, `early_stopping: true` |
-| `probe_<model>_10seeds.yaml` | 10-seed grid on Together API, `early_stopping: true` |
-| `probe_<model>_100seeds.yaml` | 100-seed grid on Together API, `early_stopping: false` |
-| `probe_<model>_N20_K19_100seeds.yaml` | "all but one know" slice at N=20 with a custom `share_costs` sweep |
+| `probe_template.yaml` (root) | annotated starter template |
+| `probe_ollama_smoke.yaml` (root) | tiny smoke on local Ollama, `early_stopping: true` |
+| `<family>/probe_<model>_10seeds.yaml` | 10-seed grid on Together API, `early_stopping: true` |
+| `<family>/probe_<model>_100seeds.yaml` | 100-seed grid on Together API, `early_stopping: false` |
+| `<family>/probe_<model>_N20_K19_100seeds.yaml` | "all but one know" slice at N=20 with a custom `share_costs` sweep |
+| `<family>/probe_<model>_teacher_pays_100seeds.yaml` | explicit teacher-pays 100-seed grid |
+| `<family>/probe_<model>_student_pays_100seeds.yaml` | explicit student-pays 100-seed grid |
+| `<family>/probe_<model>_<mode>_N20_K19_100seeds.yaml` | N=20 slice for a specific payment mode |
 
 ### `probe_share.py` – will the informed agent share?
 
@@ -272,7 +278,7 @@ Fixes the game to `teacher_only` initiation + `teacher_pays` payment (fixes thes
 Run:
 
 ```bash
-python scripts/probes/probe_share.py --grid-file configs/probes/probe_qwen3_235b_10seeds.yaml
+python scripts/probes/probe_share.py --grid-file configs/probes/qwen/probe_qwen3_235b_10seeds.yaml
 ```
 
 **Early stopping.** When enabled, the first half of `seeds` runs as batch 1. If every batch-1 result is identical, the config stops there and does not run batch 2. When disabled, all seeds always run.
@@ -296,7 +302,7 @@ Fixes the game to `initiation_mode='student_only'` + `payment_mode='student_pays
 Run:
 
 ```bash
-python scripts/probes/probe_request.py --grid-file configs/probes/probe_qwen2_5_7b_turbo_100seeds.yaml
+python scripts/probes/probe_request.py --grid-file configs/probes/deepseek/probe_deepseek_v4_flash_student_pays_100seeds.yaml
 ```
 
 **Output:**
@@ -324,7 +330,7 @@ Both regimes ask the same follow-up question, so any distributional shift is att
 Run:
 
 ```bash
-python scripts/probes/probe_expected_rounds.py --grid-file configs/probes/probe_qwen3_235b_10seeds.yaml
+python scripts/probes/probe_expected_rounds.py --grid-file configs/probes/qwen/probe_qwen3_235b_10seeds.yaml
 ```
 
 `early_stopping` is **ignored** here: integer answers are almost never identical across seeds, so early stopping would never trigger.
@@ -491,6 +497,11 @@ agent-knowgame/
 │   ├── config_template.yaml       # base full-game config
 │   ├── together_prices.yaml       # per-1K price table
 │   └── probes/                    # grid configs for probe scripts
+│       ├── probe_template.yaml    # starter template, copy and edit
+│       ├── probe_ollama_smoke.yaml
+│       ├── deepseek/              # DeepSeek family configs
+│       ├── gpt-oss/               # gpt-oss family configs
+│       └── qwen/                  # Qwen family configs
 ├── probes/                        # probe outputs (JSONL/CSV/log)
 ├── tests/                         # pytest suite
 └── logs/                          # per-run game logs (JSONL)
