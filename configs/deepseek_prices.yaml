@@ -1,0 +1,13 @@
+# DeepSeek native API pricing per 1K tokens.
+# Input is split into cache_hit and cache_miss tiers.
+# calc_costs.py bills them separately.
+#
+# Cache pricing yields cost = hit * input_cache_hit + miss * input_cache_miss
+#       where miss = prompt_tokens - prompt_cache_hit_tokens (derived, not stored).
+
+deepseek:deepseek-v4-pro:
+  input_cache_hit:  0.000003625   # $0.003625 / 1M
+  input_cache_miss: 0.000435      # $0.435    / 1M
+  output:           0.00087       # $0.87     / 1M
+
+# TODO: add pricing for deepseek-flash on native DeepSeek API
