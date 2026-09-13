@@ -50,7 +50,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 
 from game.config import GameConfig
-from game.clients import LLMClient, OllamaLLMClient, TogetherLLMClient
+from game.clients import LLMClient, OllamaLLMClient, TogetherLLMClient, DeepSeekLLMClient
 from game.clients.token_usage import token_usage_session
 from game.prompt_builder import create_prompt_builder
 from game.states import AgentState, ChatMessage, RoundResult
@@ -92,12 +92,24 @@ def build_llm(config: GameConfig, token_log_path: Path | None = None) -> LLMClie
             token_log_path=log_path,
         )
 
+    if config.api_type == 'deepseek':
+        return DeepSeekLLMClient(
+            model=config.model,
+            seed=config.seed,
+            temperature=config.temperature,
+            top_p=config.top_p,
+            max_tokens=config.max_tokens,
+            request_timeout=config.request_timeout,
+            token_log_path=log_path,
+            # verify = True by default
+        )
+
     raise NotImplementedError(f"api_type={config.api_type!r} not supported by probe_share")
 
 
 # request_timeout added for ollama model variations and it literally depends on hardware
 def stub_config(n_agents: int, m_informed: int, share_cost: float, seed: int,
-                model: str, api_type: Literal['ollama', 'together', 'fake'],
+                model: str, api_type: Literal['ollama', 'together', 'deepseek', 'fake'],
                 request_timeout: float = 60.0) -> GameConfig:
     
     return GameConfig(
