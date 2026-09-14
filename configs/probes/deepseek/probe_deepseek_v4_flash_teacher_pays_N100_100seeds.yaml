@@ -1,0 +1,41 @@
+# The teacher_pays mode for DeepSeek-V4-Flash-0731.
+# Slice at N=100, K ∈ {1, 30, 60, 90, 99}.
+# Standard share_cost sweep per K: unique of [0.1, 1, K/2, K] (K/2 skipped when trivial).
+# 100 seeds, early_stopping disabled.
+# Non-reasoning model (verified via explicit reasoning-probe on 2026-09-03).
+#
+#
+# Consumed by:
+#   probe_share.py             - teacher_pays hardcoded internally; payment_mode field ignored
+#   probe_expected_rounds.py   - reads payment_mode below, probes the informed agent
+
+n_agents:   [100]
+m_informed: [[1, 30, 60, 90, 99]]
+
+share_costs:
+  1:  [0.1, 1]
+  30: [0.1, 1, 15, 30]
+  60: [0.1, 1, 30, 60]
+  90: [0.1, 1, 45, 90]
+  99: [0.1, 1, 49.5, 99]
+
+seeds: [
+  42, 43, 44, 45, 46, 47, 48, 49, 50, 51,
+  52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
+  62, 63, 64, 65, 66, 67, 68, 69, 70, 71,
+  72, 73, 74, 75, 76, 77, 78, 79, 80, 81,
+  82, 83, 84, 85, 86, 87, 88, 89, 90, 91,
+  92, 93, 94, 95, 96, 97, 98, 99, 100, 101,
+  102, 103, 104, 105, 106, 107, 108, 109, 110, 111,
+  112, 113, 114, 115, 116, 117, 118, 119, 120, 121,
+  122, 123, 124, 125, 126, 127, 128, 129, 130, 131,
+  132, 133, 134, 135, 136, 137, 138, 139, 140, 141
+]
+early_stopping: false
+
+model:     deepseek-ai/DeepSeek-V4-Flash-0731
+api_type:  together
+reasoning: false
+request_timeout: 240
+
+payment_mode: teacher_pays
